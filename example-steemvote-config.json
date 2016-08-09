@@ -1,0 +1,29 @@
+{
+    "authors": [
+        {
+            "name": "andu"
+        },
+        {
+            "name": "bayareacoins"
+        },
+        {
+            "name": "g4l"
+        },
+        {
+            "name": "jholdsworthy"
+        },
+        {
+            "name": "kefkius"
+        },
+        {
+            "name": "klye"
+        },
+        {
+            "name": "xcynosure"
+        }
+    ],
+    "database_path": "/var/steemvoter/",
+    "max_post_age": "1 week",
+    "vote_key": "5XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "voter_account_name": "myname"
+}

@@ -1,0 +1,5 @@
+*.pyc
+*.swp
+steemvote-config.json
+Steemvote.egg-info/
+database/
