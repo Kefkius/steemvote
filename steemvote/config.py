@@ -5,9 +5,19 @@ import humanfriendly
 
 from steemvote.models import Author
 
+def get_decimal(data):
+    """Parse data into a decimal."""
+    if isinstance(data, float):
+        return data
+    elif data.endswith('%'):
+        return float(data.strip('%')) / 100
+    # Try to parse a float string (e.g. "0.5").
+    if '.' in data:
+        return float(data)
+    raise ValueError('A percentage or decimal fraction is required')
 
 class ConfigError(Exception):
-    """Exception raised when not enough configuration is invalid."""
+    """Exception raised when configuration is invalid."""
     pass
 
 class Config(object):
@@ -17,6 +27,14 @@ class Config(object):
 
     def get(self, key, value=None):
         return self.options.get(key, value)
+
+    def get_decimal(self, key, value=None):
+        """Get a value that represents a percentage."""
+        val = self.get(key, value)
+        try:
+            return get_decimal(val)
+        except Exception as e:
+            raise ConfigError('Invalid config value "%s" for key "%s" (Error: %s)' % (val, key, str(e)))
 
     def get_seconds(self, key, value=None):
         """Get a value that represents a number of seconds."""

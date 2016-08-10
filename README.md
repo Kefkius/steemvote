@@ -41,12 +41,16 @@ Optional values for each author:
 
 ### Voting Rules
 
-The following values are optional, and specify how to vote:
+These voting rules are optional, and specify how to vote.
+
+The following values can be specified as seconds or as human-readable strings (e.g. `"max_post_age": "2 days"`):
 
 - `max_post_age`: The maximum age of a post (Default: `2 days`).
 - `vote_delay`: The age a post must be before it is voted on (Default: `1 minute`).
 
-These values can be specified as seconds or as human-readable strings (e.g. `"max_post_age": "2 days"`).
+The following values can be specified as decimals or as human-readable percentages (e.g. `"target_voting_power_use": "75%"`):
+
+- `target_voting_power_use`: The fraction of total voting power that steemvote should use (Default: `75%`).
 
 ### Database
 

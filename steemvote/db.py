@@ -1,4 +1,5 @@
 import logging
+import struct
 import time
 
 import plyvel
@@ -64,3 +65,29 @@ class DB(object):
                 comments.append(comment)
 
         return comments
+
+    def update_vote_times(self, vote_times):
+        """Add vote_times to the most recent votes."""
+        new_vote_times = b''.join([struct.pack(b'<I', i) for i in vote_times])
+        last_votes = self.db.get(b'last-votes', b'')
+        last_votes += new_vote_times
+        # Only keep the last 20 votes.
+        if len(last_votes) > 80:
+            last_votes = last_votes[-80:]
+
+        self.db.put(b'last-votes', last_votes)
+
+    def get_last_votes(self):
+        """Get the most recent vote timestamps."""
+        last_votes = self.db.get(b'last-votes', b'')
+        timestamps = []
+        while last_votes:
+            timestamps.append(struct.unpack(b'<I', last_votes[0:4])[0])
+            last_votes = last_votes[4:]
+        return timestamps
+
+    def get_votes_in_last_day(self):
+        """Get the number of votes cast in the last 24 hours."""
+        one_day_ago = time.time() - 24 * 60 * 60
+        timestamps = list(filter(lambda i: i >= one_day_ago, self.get_last_votes()))
+        return timestamps
