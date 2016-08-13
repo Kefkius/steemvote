@@ -73,9 +73,18 @@ class Config(object):
         authors = self.get('authors', [])
         self.authors = [Author.from_dict(i) for i in authors]
 
-    def get_author(self, name):
+        backup_authors = self.get('backup_author_names', [])
+        self.backup_authors = [Author.from_dict({'name': i}) for i in backup_authors]
+
+    def get_author(self, name, include_backup_authors=False):
         """Get an author by name."""
         for author in self.authors:
+            if author.name == name:
+                return author
+        if not include_backup_authors:
+            return
+        # Search for the author in the backup authors list.
+        for author in self.backup_authors:
             if author.name == name:
                 return author
 

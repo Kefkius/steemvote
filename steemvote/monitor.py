@@ -73,9 +73,17 @@ class Monitor(object):
         self.running = True
         self.monitor()
 
+    def use_backup_authors(self):
+        """Get whether to vote for backup authors.
+
+        Backup authors are voted for if the current voting power use
+        is less than 50% of the target voting power use.
+        """
+        return self.current_used_voting_power < self.target_voting_power_use * 0.5
+
     def should_vote(self, comment):
         """Get whether comment should be voted on."""
-        author = self.config.get_author(comment.author)
+        author = self.config.get_author(comment.author, self.use_backup_authors())
         if not author:
             return False
         if comment.is_reply and not author.vote_replies:
@@ -131,7 +139,7 @@ class Monitor(object):
             if not self.should_vote(comment):
                 self.logger.debug('Skipping %s' % comment.identifier)
                 continue
-            author = self.config.get_author(comment.author)
+            author = self.config.get_author(comment.author, self.use_backup_authors())
             tx = self.steem.vote(str(comment.identifier, 'utf-8'), author.weight, voter=self.voter_account)
             try:
                 self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')

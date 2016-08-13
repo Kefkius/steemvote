@@ -22,6 +22,10 @@
             "name": "xcynosure"
         }
     ],
+    "backup_author_names": [
+        "dantheman",
+        "ned"
+    ],
     "database_path": "/var/steemvoter/",
     "max_post_age": "1 week",
     "vote_key": "5XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
