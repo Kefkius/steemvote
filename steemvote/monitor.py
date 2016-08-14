@@ -11,12 +11,10 @@ from steemvote.models import Comment
 DAILY_VOTE_ALLOTMENT = 20
 # Default fraction of voting power to use.
 DEFAULT_TARGET_VOTING_POWER_USE = 0.75 # 75%
+# Default minimum age of posts to vote on.
+DEFAULT_MIN_POST_AGE = 60 # 1 minute.
 # Default maximum age of posts to vote on.
 DEFAULT_MAX_POST_AGE = 2 * 24 * 60 * 60 # 2 days.
-
-class ConfigError(Exception):
-    """Exception raised when not enough configuration was done."""
-    pass
 
 class Monitor(object):
     """Monitors Steem posts."""
@@ -34,6 +32,8 @@ class Monitor(object):
         self.stats_update_interval = 20
         # Target fraction of voting power to use.
         self.target_voting_power_use = config.get_decimal('target_voting_power_use', DEFAULT_TARGET_VOTING_POWER_USE)
+        # Minimum age of posts to vote for.
+        self.vote_delay = config.get_seconds('vote_delay', DEFAULT_MIN_POST_AGE)
         # Maximum age of posts to vote for.
         self.max_post_age = config.get_seconds('max_post_age', DEFAULT_MAX_POST_AGE)
         # Voter account name.
@@ -132,7 +132,7 @@ class Monitor(object):
 
     def vote_ready_comments(self):
         """Vote on the comments that are ready."""
-        comments = self.db.get_comments_to_vote()
+        comments = self.db.get_comments_to_vote(self.vote_delay)
         vote_times = []
         for comment in comments:
             # Skip if the rules have changed for the author.

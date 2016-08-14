@@ -19,11 +19,8 @@ class DB(object):
         self.logger.setLevel(logging.INFO)
 
         self.path = config.get('database_path', 'database/')
-        # Vote on posts that are >= 1 minute old by default.
-        self.vote_delay = config.get_seconds('vote_delay', 60)
 
         self.db = plyvel.DB(self.path, create_if_missing=True)
-
         self.comment_lock = threading.Lock()
         self.vote_time_lock = threading.Lock()
 
@@ -60,14 +57,14 @@ class DB(object):
                 self.update_voted_comment(comment, wb)
             wb.write()
 
-    def get_comments_to_vote(self):
+    def get_comments_to_vote(self, minimum_age):
         """Get the comments that are ready for voting."""
         now = time.time()
         comments = []
         with self.comment_lock:
             for key, value in self.db.iterator(prefix=b'post-'):
                 comment = Comment.deserialize(key, value)
-                if now - comment.timestamp > self.vote_delay:
+                if now - comment.timestamp > minimum_age:
                     comments.append(comment)
 
         return comments
