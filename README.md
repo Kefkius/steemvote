@@ -51,6 +51,7 @@ The following values can be specified as seconds or as human-readable strings (e
 
 - `max_post_age`: The maximum age a post can be for it to be voted on (Default: `2 days`).
 - `min_post_age`: The age a post must be before it is voted on (Default: `1 minute`).
+- `vote_interval`: The timespan that steemvoter waits between collecting and voting on eligible comments (Default: `10 seconds`).
 
 The following values can be specified as decimals or as human-readable percentages (e.g. `"min_voting_power": "75%"`):
 

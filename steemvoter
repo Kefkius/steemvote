@@ -12,8 +12,8 @@ import humanfriendly
 from steemvote.config import Config, ConfigError
 from steemvote.monitor import Monitor
 
-# Interval for voting on eligible comments.
-vote_interval = 10
+# Default interval for voting on eligible comments.
+DEFAULT_VOTE_INTERVAL = 10 # 10 seconds.
 
 def print_config(monitor):
     """Print info regarding monitor's configuration."""
@@ -61,8 +61,12 @@ def main():
 
     try:
         monitor = Monitor(config)
+        vote_interval = config.get_seconds('vote_interval', DEFAULT_VOTE_INTERVAL)
+        # Vote interval cannot be less than one second.
+        if vote_interval < 1:
+            raise ConfigError('The minimum value for "vote_interval" is 1 second')
     except ConfigError as e:
-        print(str(e))
+        print('Config Error: %s' % str(e))
         sys.exit(1)
 
     print_config(monitor)
