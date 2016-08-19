@@ -19,6 +19,13 @@ class Author(object):
             raise TypeError('A float is required for weight')
         return cls(name, vote_replies=vote_replies, weight=weight)
 
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'vote_replies': self.vote_replies,
+            'weight': self.weight,
+        }
+
 class Comment(object):
     """A comment."""
     def __init__(self, author='', identifier='', timestamp=0, is_reply=False):

@@ -52,7 +52,10 @@ class Config(object):
             raise ConfigError('Configuration value for "%s" is required' % key)
 
     def save(self):
-        s = json.dumps(self.options, indent=4, sort_keys=True)
+        options = dict(self.options)
+        options['authors'] = [i.to_dict() for i in self.authors]
+        options['backup_author_names'] = [i.name for i in self.backup_authors]
+        s = json.dumps(options, indent=4, sort_keys=True)
         with open(self.filepath, 'w') as f:
             f.write(s)
 
@@ -93,4 +96,11 @@ class Config(object):
         if not all(isinstance(i, Author) for i in authors):
             raise TypeError('A list of authors is required')
         self.authors = authors
+        self.save()
+
+    def set_backup_authors(self, backup_authors):
+        """Set backup authors and save."""
+        if not all(isinstance(i, Author) for i in authors):
+            raise TypeError('A list of authors is required')
+        self.backup_authors = backup_authors
         self.save()
