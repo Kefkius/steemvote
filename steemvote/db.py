@@ -30,6 +30,11 @@ class DB(object):
         while last_votes:
             self.last_votes.append(struct.unpack(b'<I', last_votes[0:4])[0])
             last_votes = last_votes[4:]
+        # Load the comments to be voted on.
+        self.tracked_comments = {}
+        for key, value in self.db.iterator(prefix=b'post-'):
+            comment = Comment.deserialize(key, value)
+            self.tracked_comments[comment.identifier] = comment
 
     def close(self):
         self.db.close()
@@ -44,9 +49,10 @@ class DB(object):
             if self.db.get(comment.serialize_key()):
                 return
 
-            self.logger.info('Adding %s' % comment.identifier)
             key, value = comment.serialize()
             self.db.put(key, value)
+            self.tracked_comments[comment.identifier] = comment
+            self.logger.info('Added %s' % comment.identifier)
 
     def update_voted_comment(self, comment, write_batch=None):
         wb = write_batch if write_batch else self.db.write_batch()
@@ -64,13 +70,16 @@ class DB(object):
                 self.update_voted_comment(comment, wb)
             wb.write()
 
+            for identifier in [comment.identifier for comment in comments]:
+                if self.tracked_comments.get(identifier):
+                    del self.tracked_comments[identifier]
+
     def get_comments_to_vote(self, minimum_age):
         """Get the comments that are ready for voting."""
         now = time.time()
         comments = []
         with self.comment_lock:
-            for key, value in self.db.iterator(prefix=b'post-'):
-                comment = Comment.deserialize(key, value)
+            for comment in self.tracked_comments.values():
                 if now - comment.timestamp > minimum_age:
                     comments.append(comment)
 
