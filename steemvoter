@@ -12,7 +12,8 @@ import humanfriendly
 from steemvote.config import Config, ConfigError
 from steemvote.monitor import Monitor
 
-vote_interval = 30
+# Interval for voting on eligible comments.
+vote_interval = 10
 
 def print_config(monitor):
     """Print info regarding monitor's configuration."""
@@ -25,8 +26,8 @@ def print_config(monitor):
     voting_config = OrderedDict()
     voting_config['Minimum post age'] = humanfriendly.format_timespan(monitor.min_post_age)
     voting_config['Maximum post age'] = humanfriendly.format_timespan(monitor.max_post_age)
-    power_use = monitor.target_voting_power_use
-    voting_config['Target voting power use'] = '{power_use:.{decimals}%}'.format(power_use=power_use,
+    power_use = monitor.min_voting_power
+    voting_config['Minimum voting power'] = '{power_use:.{decimals}%}'.format(power_use=power_use,
                                                 decimals=len(str(power_use)) - 3)
 
     longest_key_length = max([len(i) for i in voting_config.keys()])

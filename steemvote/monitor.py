@@ -7,10 +7,8 @@ from piston.steem import Steem
 from steemvote.db import DB
 from steemvote.models import Comment
 
-# Number of votes allotted each day.
-DAILY_VOTE_ALLOTMENT = 20
-# Default fraction of voting power to use.
-DEFAULT_TARGET_VOTING_POWER_USE = 0.75 # 75%
+# Default minimum remaining voting power.
+DEFAULT_MINIMUM_VOTING_POWER = 0.90 # 90%
 # Default minimum age of posts to vote on.
 DEFAULT_MIN_POST_AGE = 60 # 1 minute.
 # Default maximum age of posts to vote on.
@@ -31,7 +29,7 @@ class Monitor(object):
         # Interval for calculating stats.
         self.stats_update_interval = 20
         # Target fraction of voting power to use.
-        self.target_voting_power_use = config.get_decimal('target_voting_power_use', DEFAULT_TARGET_VOTING_POWER_USE)
+        self.min_voting_power = config.get_decimal('min_voting_power', DEFAULT_MINIMUM_VOTING_POWER)
         # Minimum age of posts to vote for.
         self.min_post_age = config.get_seconds('min_post_age', DEFAULT_MIN_POST_AGE)
         # Maximum age of posts to vote for.
@@ -49,10 +47,8 @@ class Monitor(object):
 
         # Time that stats were last calculated at.
         self.last_stats_update = 0
-        # Current voting power that we've used.
-        self.current_used_voting_power = 0.0
-
-        self.update_stats()
+        # Current voting power that we have.
+        self.current_voting_power = 0.0
 
     def is_running(self):
         return self.running
@@ -76,10 +72,10 @@ class Monitor(object):
     def use_backup_authors(self):
         """Get whether to vote for backup authors.
 
-        Backup authors are voted for if the current voting power use
-        is less than 50% of the target voting power use.
+        Backup authors are voted for if the current voting power
+        is greater than the minimum voting power + 5%.
         """
-        return self.current_used_voting_power < self.target_voting_power_use * 0.5
+        return self.current_voting_power > min(1.0, self.min_voting_power + 0.05)
 
     def should_vote(self, comment):
         """Get whether comment should be voted on."""
@@ -92,7 +88,7 @@ class Monitor(object):
         if time.time() - comment.timestamp > self.max_post_age:
             return False
         # Do not vote if we're using too much voting power.
-        if self.current_used_voting_power >= self.target_voting_power_use:
+        if self.current_voting_power < self.min_voting_power:
             return False
         return True
 
@@ -114,7 +110,7 @@ class Monitor(object):
     def get_stats(self):
         """Get runtime statistics."""
         stats = {}
-        stats['Current voting power use'] = self.current_used_voting_power
+        stats['Current voting power'] = self.current_voting_power
         return stats
 
     def update_stats(self):
@@ -127,13 +123,12 @@ class Monitor(object):
 
     def update_voting_power_use(self):
         """Recalculate the current voting power that we've used."""
-        votes = self.db.get_votes_in_last_day()
-        self.current_used_voting_power = float(len(votes)) / DAILY_VOTE_ALLOTMENT
+        obj = self.steem.rpc.get_accounts([self.voter_account])[0]
+        self.current_voting_power = obj['voting_power'] / 10000.0
 
     def vote_ready_comments(self):
         """Vote on the comments that are ready."""
         comments = self.db.get_comments_to_vote(self.min_post_age)
-        vote_times = []
         for comment in comments:
             # Skip if the rules have changed for the author.
             if not self.should_vote(comment):
@@ -153,8 +148,5 @@ class Monitor(object):
                     self.logger.info('Skipping already-voted post %s' % comment.identifier)
                 else:
                     raise e
-            else:
-                vote_times.append(int(time.time()))
 
         self.db.update_voted_comments(comments)
-        self.db.update_vote_times(vote_times)

@@ -22,14 +22,7 @@ class DB(object):
 
         self.db = plyvel.DB(self.path, create_if_missing=True)
         self.comment_lock = threading.Lock()
-        self.vote_time_lock = threading.Lock()
 
-        # Load the last votes.
-        self.last_votes = []
-        last_votes = self.db.get(b'last-votes', b'')
-        while last_votes:
-            self.last_votes.append(struct.unpack(b'<I', last_votes[0:4])[0])
-            last_votes = last_votes[4:]
         # Load the comments to be voted on.
         self.tracked_comments = {}
         for key, value in self.db.iterator(prefix=b'post-'):
@@ -84,26 +77,3 @@ class DB(object):
                     comments.append(comment)
 
         return comments
-
-    def update_vote_times(self, vote_times):
-        """Add vote_times to the most recent votes."""
-        with self.vote_time_lock:
-            self.last_votes = vote_times + self.last_votes
-            # Only keep the last 20 votes.
-            if len(self.last_votes) > 20:
-                self.last_votes = self.last_votes[-20:]
-
-            # Save last votes.
-            last_votes = b''.join([struct.pack(b'<I', i) for i in self.last_votes])
-            self.db.put(b'last-votes', last_votes)
-
-    def get_last_votes(self):
-        """Get the most recent vote timestamps."""
-        with self.vote_time_lock:
-            return list(self.last_votes)
-
-    def get_votes_in_last_day(self):
-        """Get the number of votes cast in the last 24 hours."""
-        one_day_ago = time.time() - 24 * 60 * 60
-        timestamps = list(filter(lambda i: i >= one_day_ago, self.get_last_votes()))
-        return timestamps

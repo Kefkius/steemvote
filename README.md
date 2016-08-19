@@ -52,9 +52,9 @@ The following values can be specified as seconds or as human-readable strings (e
 - `max_post_age`: The maximum age a post can be for it to be voted on (Default: `2 days`).
 - `min_post_age`: The age a post must be before it is voted on (Default: `1 minute`).
 
-The following values can be specified as decimals or as human-readable percentages (e.g. `"target_voting_power_use": "75%"`):
+The following values can be specified as decimals or as human-readable percentages (e.g. `"min_voting_power": "75%"`):
 
-- `target_voting_power_use`: The fraction of total voting power that steemvote should use (Default: `75%`).
+- `min_voting_power`: The fraction of available voting power that steemvote won't vote below (Default: `90%`).
 
 ### Database
 
