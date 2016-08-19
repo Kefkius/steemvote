@@ -1,15 +1,38 @@
 #!/usr/bin/env python3
 import argparse
+from collections import OrderedDict
 import logging
 import threading
 import time
 import traceback
 import sys
 
+import humanfriendly
+
 from steemvote.config import Config, ConfigError
 from steemvote.monitor import Monitor
 
 vote_interval = 30
+
+def print_config(monitor):
+    """Print info regarding monitor's configuration."""
+    header = '---------- Steemvote Configuration ----------'
+    footer = '-' * len(header)
+    # Pad lengths so that all values are aligned.
+    format_str = '{key:{pad_length}}: {value}'.format
+    print(header)
+
+    voting_config = OrderedDict()
+    voting_config['Minimum post age'] = humanfriendly.format_timespan(monitor.min_post_age)
+    voting_config['Maximum post age'] = humanfriendly.format_timespan(monitor.max_post_age)
+    power_use = monitor.target_voting_power_use
+    voting_config['Target voting power use'] = '{power_use:.{decimals}%}'.format(power_use=power_use,
+                                                decimals=len(str(power_use)) - 3)
+
+    longest_key_length = max([len(i) for i in voting_config.keys()])
+    for k, v in voting_config.items():
+        print(format_str(key=k, value=v, pad_length=longest_key_length))
+    print(footer)
 
 def main():
     # Silence the piston logger.
@@ -41,6 +64,7 @@ def main():
         print(str(e))
         sys.exit(1)
 
+    print_config(monitor)
     t = threading.Thread(target=monitor.run)
     last_vote = time.time()
     try:
