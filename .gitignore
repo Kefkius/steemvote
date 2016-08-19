@@ -3,3 +3,4 @@
 steemvote-config.json
 Steemvote.egg-info/
 database/
+dist/

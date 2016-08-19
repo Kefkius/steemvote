@@ -1,0 +1,7 @@
+include changelog.md
+include example-steemvote-config.json
+include LICENSE
+include README.md
+include setup.py
+include steemvoter
+recursive-include steemvote *.py
