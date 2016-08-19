@@ -51,6 +51,12 @@ class Config(object):
         if not self.get(key):
             raise ConfigError('Configuration value for "%s" is required' % key)
 
+    def update_old_keys(self):
+        """Update old keys for backwards compatibility."""
+        # Change "vote_delay" to "min_post_age".
+        if self.get('vote_delay') is not None and self.get('min_post_age') is None:
+            self.set('min_post_age', self.get('vote_delay'))
+
     def save(self):
         options = dict(self.options)
         options['authors'] = [i.to_dict() for i in self.authors]
@@ -69,6 +75,7 @@ class Config(object):
         self.options = options
         self.filepath = filepath
 
+        self.update_old_keys()
         self.load_authors()
 
     def load_authors(self):
