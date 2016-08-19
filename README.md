@@ -49,8 +49,8 @@ These voting rules are optional, and specify how to vote.
 
 The following values can be specified as seconds or as human-readable strings (e.g. `"max_post_age": "2 days"`):
 
-- `max_post_age`: The maximum age of a post (Default: `2 days`).
-- `vote_delay`: The age a post must be before it is voted on (Default: `1 minute`).
+- `max_post_age`: The maximum age a post can be for it to be voted on (Default: `2 days`).
+- `min_post_age`: The age a post must be before it is voted on (Default: `1 minute`).
 
 The following values can be specified as decimals or as human-readable percentages (e.g. `"target_voting_power_use": "75%"`):
 
@@ -83,7 +83,7 @@ Wait until posts are 30 seconds old to upvote them.
     ],
     "vote_key": "5XX...",
     "voter_account_name": "myname",
-    "vote_delay": 30
+    "min_post_age": 30
 }
 ```
 

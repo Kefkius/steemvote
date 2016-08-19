@@ -33,7 +33,7 @@ class Monitor(object):
         # Target fraction of voting power to use.
         self.target_voting_power_use = config.get_decimal('target_voting_power_use', DEFAULT_TARGET_VOTING_POWER_USE)
         # Minimum age of posts to vote for.
-        self.vote_delay = config.get_seconds('vote_delay', DEFAULT_MIN_POST_AGE)
+        self.min_post_age = config.get_seconds('min_post_age', DEFAULT_MIN_POST_AGE)
         # Maximum age of posts to vote for.
         self.max_post_age = config.get_seconds('max_post_age', DEFAULT_MAX_POST_AGE)
         # Voter account name.
@@ -132,7 +132,7 @@ class Monitor(object):
 
     def vote_ready_comments(self):
         """Vote on the comments that are ready."""
-        comments = self.db.get_comments_to_vote(self.vote_delay)
+        comments = self.db.get_comments_to_vote(self.min_post_age)
         vote_times = []
         for comment in comments:
             # Skip if the rules have changed for the author.
