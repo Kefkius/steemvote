@@ -39,6 +39,8 @@ Optional values for each author:
 - `vote_replies`: Whether to vote on all replies the author makes, in addition to their regular posts (Default: `false`).
 - `weight`: The weight to vote with. `100.0` represents an upvote, and `-100.0` represents a downvote (Default: `100.0`).
 
+*NOTE* that if you just want to add an author and use the default values, a string can be used instead of an object.
+
 Sometimes, you don't have enough authors to consume the amount of voting power you want. In that case, you
 can use the config value `backup_author_names`. `backup_author_names` is a list of author names. These authors will be
 voted for if steemvote detects that it is not using the amount of voting power that you want it to.
@@ -95,7 +97,7 @@ Do not vote if his post is more than 2 hours old.
 ```
 {
     "authors": [
-        {"name": "klye"}
+        "klye"
     ],
     "max_post_age": "2 hours",
     "vote_key": "5XX...",

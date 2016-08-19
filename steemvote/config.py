@@ -81,7 +81,7 @@ class Config(object):
     def load_authors(self):
         """Load authors from config."""
         authors = self.get('authors', [])
-        self.authors = [Author.from_dict(i) for i in authors]
+        self.authors = [Author.from_config(i) for i in authors]
 
         backup_authors = self.get('backup_author_names', [])
         self.backup_authors = [Author.from_dict({'name': i}) for i in backup_authors]

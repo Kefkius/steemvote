@@ -1,26 +1,15 @@
 {
     "authors": [
+        "andu",
+        "bayareacoins",
+        "g4l",
+        "jholdsworthy",
+        "kefkius",
         {
-            "name": "andu"
+            "name": "klye",
+            "upvote_replies": true
         },
-        {
-            "name": "bayareacoins"
-        },
-        {
-            "name": "g4l"
-        },
-        {
-            "name": "jholdsworthy"
-        },
-        {
-            "name": "kefkius"
-        },
-        {
-            "name": "klye"
-        },
-        {
-            "name": "xcynosure"
-        }
+        "xcynosure"
     ],
     "backup_author_names": [
         "dantheman",

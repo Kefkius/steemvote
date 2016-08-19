@@ -2,10 +2,24 @@ import binascii
 import datetime
 import unittest
 
-from steemvote.models import Comment
+from steemvote.models import Author, Comment
 
 
 klye_post = {'author': 'klye', 'created_parsed': datetime.datetime(2016, 8, 5, 17, 22, 30, tzinfo=datetime.timezone.utc), 'identifier': '@klye/re-bobdownlov-introducing-the-first-steemit-coffee-20160805t172409383z', 'parent_author': 'bobdownlov'}
+
+class AuthorTest(unittest.TestCase):
+    def test_from_string(self):
+        for name_value in [
+            'kefkius',
+            b'kefkius',
+        ]:
+            author = Author.from_config(name_value)
+            self.assertEqual(b'kefkius', author.name)
+            self.assertEqual(False, author.vote_replies)
+            self.assertEqual(100.0, author.weight)
+
+    def test_error(self):
+        self.assertRaises(TypeError, Author.from_config, ['foo'])
 
 class CommentTest(unittest.TestCase):
     def test_from_dict(self):

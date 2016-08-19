@@ -9,6 +9,18 @@ class Author(object):
         self.weight = weight
 
     @classmethod
+    def from_config(cls, value):
+        """Instantiate from config value."""
+        if isinstance(value, dict):
+            return cls.from_dict(value)
+        elif isinstance(value, str):
+            return cls(name=bytes(value, 'utf-8'))
+        elif isinstance(value, bytes):
+            return cls(name=value)
+        else:
+            raise TypeError('A string or dict is required')
+
+    @classmethod
     def from_dict(cls, d):
         name = bytes(d.get('name', ''), 'utf-8')
         if not name:

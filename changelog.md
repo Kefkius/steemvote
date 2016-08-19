@@ -14,3 +14,5 @@
 * The config key `"vote_delay"` is now `"min_post_age"`. The effect is the same.
     Configurations that still use `"vote_delay"` are backwards-compatible.
 * Configuration info is output when steemvoter starts up.
+* In the `"authors"` config list, a string representing an author name can be used
+    instead of an object. In this case, the default values will be used for optional attributes.
