@@ -60,7 +60,7 @@ class Config(object):
     def save(self):
         options = dict(self.options)
         options['authors'] = [i.to_dict() for i in self.authors]
-        options['backup_author_names'] = [i.name for i in self.backup_authors]
+        options['backup_authors'] = [i.to_dict() for i in self.backup_authors]
         s = json.dumps(options, indent=4, sort_keys=True)
         with open(self.filepath, 'w') as f:
             f.write(s)
@@ -83,8 +83,8 @@ class Config(object):
         authors = self.get('authors', [])
         self.authors = [Author.from_config(i) for i in authors]
 
-        backup_authors = self.get('backup_author_names', [])
-        self.backup_authors = [Author.from_dict({'name': i}) for i in backup_authors]
+        backup_authors = self.get('backup_authors', [])
+        self.backup_authors = [Author.from_config(i) for i in backup_authors]
 
     def get_author(self, name, include_backup_authors=False):
         """Get an author by name."""

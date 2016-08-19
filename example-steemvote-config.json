@@ -11,8 +11,11 @@
         },
         "xcynosure"
     ],
-    "backup_author_names": [
-        "dantheman",
+    "backup_authors": [
+        {
+            "name": "dantheman",
+            "upvote_replies": true
+        },
         "ned"
     ],
     "database_path": "/var/steemvoter/",

@@ -42,8 +42,8 @@ Optional values for each author:
 *NOTE* that if you just want to add an author and use the default values, a string can be used instead of an object.
 
 Sometimes, you don't have enough authors to consume the amount of voting power you want. In that case, you
-can use the config value `backup_author_names`. `backup_author_names` is a list of author names. These authors will be
-voted for if steemvote detects that it is not using the amount of voting power that you want it to.
+can use the config value `backup_authors`. `backup_authors` is a list of objects or strings, just as `authors` is.
+These authors will be voted for if steemvote detects that it is not using as much voting power as you want it to.
 
 ### Voting Rules
 
