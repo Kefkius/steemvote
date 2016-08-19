@@ -4,9 +4,12 @@ import time
 import grapheneapi
 from piston.steem import Steem
 
+from steemvote.config import ConfigError
 from steemvote.db import DB
 from steemvote.models import Comment
 
+# Default maximum remaining voting power.
+DEFAULT_MAXIMUM_VOTING_POWER = 0.95
 # Default minimum remaining voting power.
 DEFAULT_MINIMUM_VOTING_POWER = 0.90 # 90%
 # Default minimum age of posts to vote on.
@@ -28,8 +31,16 @@ class Monitor(object):
 
         # Interval for calculating stats.
         self.stats_update_interval = 20
-        # Target fraction of voting power to use.
+        # Minimum available voting power.
         self.min_voting_power = config.get_decimal('min_voting_power', DEFAULT_MINIMUM_VOTING_POWER)
+        # Maximum available voting power.
+        # Steemvote will attempt to use more power than normal if current
+        # voting power is greater than this.
+        self.max_voting_power = config.get_decimal('max_voting_power', DEFAULT_MAXIMUM_VOTING_POWER)
+        # The maximum voting power must not be less than the minimum voting power.
+        if self.max_voting_power < self.min_voting_power:
+            raise ConfigError('"max_voting_power" must not be less than "min_voting_power"')
+
         # Minimum age of posts to vote for.
         self.min_post_age = config.get_seconds('min_post_age', DEFAULT_MIN_POST_AGE)
         # Maximum age of posts to vote for.
@@ -73,9 +84,9 @@ class Monitor(object):
         """Get whether to vote for backup authors.
 
         Backup authors are voted for if the current voting power
-        is greater than the minimum voting power + 5%.
+        is greater than the maximum voting power.
         """
-        return self.current_voting_power > min(1.0, self.min_voting_power + 0.05)
+        return self.current_voting_power > self.max_voting_power
 
     def should_vote(self, comment):
         """Get whether comment should be voted on."""

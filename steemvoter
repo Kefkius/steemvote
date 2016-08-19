@@ -26,9 +26,12 @@ def print_config(monitor):
     voting_config = OrderedDict()
     voting_config['Minimum post age'] = humanfriendly.format_timespan(monitor.min_post_age)
     voting_config['Maximum post age'] = humanfriendly.format_timespan(monitor.max_post_age)
-    power_use = monitor.min_voting_power
-    voting_config['Minimum voting power'] = '{power_use:.{decimals}%}'.format(power_use=power_use,
-                                                decimals=len(str(power_use)) - 3)
+    min_voting_power = monitor.min_voting_power
+    voting_config['Minimum voting power'] = '{voting_power:.{decimals}%}'.format(voting_power=min_voting_power,
+                                                decimals=len(str(min_voting_power)) - 3)
+    max_voting_power = monitor.max_voting_power
+    voting_config['Maximum voting power'] = '{voting_power:.{decimals}%}'.format(voting_power=max_voting_power,
+                                                decimals=len(str(max_voting_power)) - 3)
 
     longest_key_length = max([len(i) for i in voting_config.keys()])
     for k, v in voting_config.items():

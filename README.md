@@ -56,6 +56,7 @@ The following values can be specified as seconds or as human-readable strings (e
 The following values can be specified as decimals or as human-readable percentages (e.g. `"min_voting_power": "75%"`):
 
 - `min_voting_power`: The fraction of available voting power that steemvote won't vote below (Default: `90%`).
+- `max_voting_power`: The fraction of available voting power that steemvote will vote aggressively above (Default: `95%`).
 
 ### Database
 
