@@ -24,6 +24,13 @@ class DB(object):
         self.comment_lock = threading.Lock()
         self.vote_time_lock = threading.Lock()
 
+        # Load the last votes.
+        self.last_votes = []
+        last_votes = self.db.get(b'last-votes', b'')
+        while last_votes:
+            self.last_votes.append(struct.unpack(b'<I', last_votes[0:4])[0])
+            last_votes = last_votes[4:]
+
     def close(self):
         self.db.close()
 
@@ -72,24 +79,19 @@ class DB(object):
     def update_vote_times(self, vote_times):
         """Add vote_times to the most recent votes."""
         with self.vote_time_lock:
-            new_vote_times = b''.join([struct.pack(b'<I', i) for i in vote_times])
-            last_votes = self.db.get(b'last-votes', b'')
-            last_votes += new_vote_times
+            self.last_votes = vote_times + self.last_votes
             # Only keep the last 20 votes.
-            if len(last_votes) > 80:
-                last_votes = last_votes[-80:]
+            if len(self.last_votes) > 20:
+                self.last_votes = self.last_votes[-20:]
 
+            # Save last votes.
+            last_votes = b''.join([struct.pack(b'<I', i) for i in self.last_votes])
             self.db.put(b'last-votes', last_votes)
 
     def get_last_votes(self):
         """Get the most recent vote timestamps."""
         with self.vote_time_lock:
-            last_votes = self.db.get(b'last-votes', b'')
-            timestamps = []
-            while last_votes:
-                timestamps.append(struct.unpack(b'<I', last_votes[0:4])[0])
-                last_votes = last_votes[4:]
-            return timestamps
+            return list(self.last_votes)
 
     def get_votes_in_last_day(self):
         """Get the number of votes cast in the last 24 hours."""
