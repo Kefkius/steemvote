@@ -40,12 +40,12 @@ def print_config(monitor):
     # Output author configuration.
     # Split author lists into lines of 5 items each.
 
-    author_names = sorted([str(i.name, 'utf-8') for i in monitor.config.authors])
+    author_names = sorted([i.name for i in monitor.config.authors])
     author_lists = []
     for i in range(0, len(author_names), 5):
         author_lists.append(author_names[i:i+5])
 
-    backup_author_names = sorted([str(i.name, 'utf-8') for i in monitor.config.backup_authors])
+    backup_author_names = sorted([i.name for i in monitor.config.backup_authors])
     backup_author_lists = []
     for i in range(0, len(backup_author_names), 5):
         backup_author_lists.append(backup_author_names[i:i+5])

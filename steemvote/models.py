@@ -1,6 +1,8 @@
 import datetime
 import struct
 
+from piston.steem import Post
+
 class Author(object):
     """An author."""
     def __init__(self, name, vote_replies=False, weight=100.0):
@@ -14,15 +16,15 @@ class Author(object):
         if isinstance(value, dict):
             return cls.from_dict(value)
         elif isinstance(value, str):
-            return cls(name=bytes(value, 'utf-8'))
-        elif isinstance(value, bytes):
             return cls(name=value)
+        elif isinstance(value, bytes):
+            return cls(name=str(value, 'utf-8'))
         else:
             raise TypeError('A string or dict is required')
 
     @classmethod
     def from_dict(cls, d):
-        name = bytes(d.get('name', ''), 'utf-8')
+        name = d.get('name')
         if not name:
             raise ValueError('No name was specified')
         vote_replies = d.get('vote_replies', False)
@@ -38,49 +40,27 @@ class Author(object):
             'weight': self.weight,
         }
 
-class Comment(object):
+class Comment(Post):
     """A comment."""
-    def __init__(self, author='', identifier='', timestamp=0, is_reply=False):
-        self.author = author
-        self.identifier = identifier
-        self.timestamp = timestamp
-        self.is_reply = is_reply
+    def __init__(self, steem, post):
+        if isinstance(post, str):
+            super(Comment, self).__init__(steem, post)
+        else:
+            attrs = [attr for attr in dir(post) if not attr.startswith('_')]
+            d = {attr: getattr(post, attr) for attr in attrs}
+            if not d.get('author'):
+                raise ValueError('An author is required')
+            super(Comment, self).__init__(steem, d)
+        self.timestamp = int(self.created_parsed.replace(tzinfo=datetime.timezone.utc).timestamp())
 
     @classmethod
-    def from_dict(cls, d):
-        """Initialize from a dict."""
-        author = bytes(d['author'], 'utf-8')
-        identifier = bytes(d['identifier'], 'utf-8')
-        timestamp = int(d['created_parsed'].replace(tzinfo=datetime.timezone.utc).timestamp())
-        is_reply = True if d['parent_author'] else False
-
-        return cls(author=author, identifier=identifier, timestamp=timestamp,
-                is_reply=is_reply)
-
-    @classmethod
-    def deserialize(cls, key, value):
-        """Deserialize from database key and value."""
+    def deserialize_key(cls, key, steem):
         # Remove "post-" prefix.
-        identifier = key[5:]
-        timestamp = struct.unpack(b'<I', value[0:4])[0]
-        is_reply = struct.unpack(b'?', value[4:5])[0]
-        author = value[5:]
-        return cls(author=author, identifier=identifier, timestamp=timestamp,
-                is_reply=is_reply)
+        identifier = str(key[5:], 'utf-8')
+        return cls(steem, identifier)
 
     def serialize_key(self):
-        """Serialize database key."""
-        return b'post-' + self.identifier
+        return b'post-' + bytes(self.identifier, 'utf-8')
 
-    def serialize_value(self):
-        """Serialize database value."""
-        timestamp = struct.pack(b'<I', self.timestamp)
-        is_reply = struct.pack(b'?', self.is_reply)
-        value = b''.join([timestamp, is_reply, self.author])
-        return value
-
-    def serialize(self):
-        """Serialize for storage in the database."""
-        key = self.serialize_key()
-        value = self.serialize_value()
-        return (key, value)
+    def is_reply(self):
+        return True if self.parent_author else False

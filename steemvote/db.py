@@ -23,10 +23,15 @@ class DB(object):
         self.db = plyvel.DB(self.path, create_if_missing=True)
         self.comment_lock = threading.Lock()
 
-        # Load the comments to be voted on.
         self.tracked_comments = {}
+
+    def load(self, steem):
+        """Load state."""
+        # Load the comments to be voted on.
         for key, value in self.db.iterator(prefix=b'post-'):
-            comment = Comment.deserialize(key, value)
+            if value == b'1':
+                continue
+            comment = Comment.deserialize_key(key, steem)
             self.tracked_comments[comment.identifier] = comment
 
     def close(self):
@@ -35,32 +40,20 @@ class DB(object):
     def add_comment(self, comment):
         """Add a comment to be voted on later."""
         with self.comment_lock:
-            # Check if the post has been voted on.
-            if self.db.get(self.voted_key(comment.identifier)):
-                return
-            # Check if the post is already in the database.
-            if self.db.get(comment.serialize_key()):
+            # Check if the post is already voted on in the database.
+            if self.db.get(comment.serialize_key(), b'0') != b'0':
                 return
 
-            key, value = comment.serialize()
-            self.db.put(key, value)
+            self.db.put(comment.serialize_key(), b'0')
             self.tracked_comments[comment.identifier] = comment
             self.logger.info('Added %s' % comment.identifier)
-
-    def update_voted_comment(self, comment, write_batch=None):
-        wb = write_batch if write_batch else self.db.write_batch()
-        wb.delete(comment.serialize_key())
-        wb.put(self.voted_key(comment.identifier), b'1')
-
-        if not write_batch:
-            wb.write()
 
     def update_voted_comments(self, comments):
         """Update comments that have been voted on."""
         with self.comment_lock:
             wb = self.db.write_batch()
             for comment in comments:
-                self.update_voted_comment(comment, wb)
+                wb.put(comment.serialize_key(), b'1')
             wb.write()
 
             for identifier in [comment.identifier for comment in comments]:

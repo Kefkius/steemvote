@@ -70,15 +70,20 @@ class Monitor(object):
         self.logger.debug('Stopped')
 
     def run(self):
+        self.connect()
+        self.logger.debug('Connected. Started monitor')
+
+        self.running = True
+        self.monitor()
+
+    def connect(self):
+        """Instantiate Steem and load database."""
         self.logger.debug('Connecting to Steem')
         # We use nobroadcast=True so we can handle exceptions better.
         self.steem = Steem(node=self.rpc_node, rpcuser=self.rpc_user,
             rpcpassword=self.rpc_pass, wif=self.wif, nobroadcast=True,
             apis=['database', 'network_broadcast'])
-        self.logger.debug('Connected. Started monitor')
-
-        self.running = True
-        self.monitor()
+        self.db.load(self.steem)
 
     def use_backup_authors(self):
         """Get whether to vote for backup authors.
@@ -93,7 +98,7 @@ class Monitor(object):
         author = self.config.get_author(comment.author, self.use_backup_authors())
         if not author:
             return False
-        if comment.is_reply and not author.vote_replies:
+        if comment.is_reply() and not author.vote_replies:
             return False
         # Do not vote if the post is too old.
         if time.time() - comment.timestamp > self.max_post_age:
@@ -109,10 +114,11 @@ class Monitor(object):
         while self.is_running():
             self.update_stats()
             try:
-                comment = next(iterator)
-                comment = Comment.from_dict(comment)
+                comment = Comment(self.steem, next(iterator))
                 if self.should_vote(comment):
                     self.db.add_comment(comment)
+            except ValueError as e:
+                self.logger.debug('Invalid comment. Skipping')
             except Exception as e:
                 self.logger.error(str(e))
                 break
@@ -146,7 +152,7 @@ class Monitor(object):
                 self.logger.debug('Skipping %s' % comment.identifier)
                 continue
             author = self.config.get_author(comment.author, self.use_backup_authors())
-            tx = self.steem.vote(str(comment.identifier, 'utf-8'), author.weight, voter=self.voter_account)
+            tx = self.steem.vote(comment.identifier, author.weight, voter=self.voter_account)
             try:
                 self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')
                 self.logger.info('Upvoted %s' % comment.identifier)
