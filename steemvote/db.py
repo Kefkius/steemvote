@@ -70,8 +70,8 @@ class DB(object):
     def add_comment(self, comment):
         """Add a comment to be voted on later."""
         with self.comment_lock:
-            # Check if the post is already voted on in the database.
-            if self.db.get(comment.serialize_key(), b'0') != b'0':
+            # Check if the post is already in the database.
+            if self.db.get(comment.serialize_key()) is not None:
                 return
 
             self.db.put(comment.serialize_key(), b'0')
