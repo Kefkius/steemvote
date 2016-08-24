@@ -23,6 +23,11 @@ class Voter(object):
 
         self.last_update = time.time()
 
+    def get_voting_power(self):
+        """Get our current voting power as a string."""
+        return '{voting_power:.{decimals}%}'.format(voting_power=self.current_voting_power,
+                    decimals=len(str(self.current_voting_power)) - 3)
+
 class Author(object):
     """An author."""
     def __init__(self, name, vote_replies=False, weight=100.0):

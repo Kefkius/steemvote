@@ -96,22 +96,28 @@ class Monitor(object):
         return self.voter.current_voting_power > self.max_voting_power
 
     def should_vote(self, comment):
-        """Get whether comment should be voted on."""
+        """Get whether comment should be voted on.
+
+        Returns:
+            A 2-tuple of (should_vote, reason). should_vote is a
+            bool, and reason contains the reason not to vote
+            if should_vote is False.
+        """
         author = self.config.get_author(comment.author, self.use_backup_authors())
         if not author:
-            return False
+            return (False, 'author is unknown')
         if comment.is_reply() and not author.vote_replies:
-            return False
+            return (False, 'comment is a reply')
         # Do not vote if the post is in a blacklisted category.
         if comment.category in self.blacklisted_categories:
-            return False
+            return (False, 'comment is in a blacklisted category')
         # Do not vote if the post is too old.
         if time.time() - comment.timestamp > self.max_post_age:
-            return False
+            return (False, 'comment is too old')
         # Do not vote if we're using too much voting power.
         if self.voter.current_voting_power < self.min_voting_power:
-            return False
-        return True
+            return (False, 'voter does not have enough voting power (current: %s)' % self.voter.get_voting_power())
+        return (True, '')
 
     def monitor(self):
         """Monitor new comments and process them."""
@@ -120,7 +126,7 @@ class Monitor(object):
             self.update_stats()
             try:
                 comment = Comment(self.steem, next(iterator))
-                if self.should_vote(comment):
+                if self.should_vote(comment)[0]:
                     self.db.add_comment(comment)
             except ValueError as e:
                 self.logger.debug('Invalid comment. Skipping')
@@ -149,8 +155,9 @@ class Monitor(object):
             comments = self.db.get_comments_to_vote(self.min_post_age)
             for comment in comments:
                 # Skip if the rules have changed for the author.
-                if not self.should_vote(comment):
-                    self.logger.debug('Skipping %s' % comment.identifier)
+                should_vote, reason = self.should_vote(comment)
+                if not should_vote:
+                    self.logger.debug('Skipping %s because %s' % (comment.identifier, reason))
                     continue
                 author = self.config.get_author(comment.author, self.use_backup_authors())
                 tx = self.steem.vote(comment.identifier, author.weight, voter=self.voter.name)
