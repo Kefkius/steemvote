@@ -24,6 +24,9 @@ def print_config(monitor):
     format_str = '{key:{pad_length}}: {value}'.format
     print(header)
 
+    if monitor.config.get('log_file'):
+        print('Log file: %s\n' % monitor.config.get('log_file'))
+
     voting_config = OrderedDict()
     voting_config['Minimum post age'] = humanfriendly.format_timespan(monitor.min_post_age)
     voting_config['Maximum post age'] = humanfriendly.format_timespan(monitor.max_post_age)
@@ -64,6 +67,13 @@ def print_config(monitor):
     print(footer)
 
 def main():
+    # Command-line arguments.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', type=str, default='', help='Path to config file')
+    parser.add_argument('-w', '--wif', type=str, help='Private key')
+    parser.add_argument('--logfile', type=str, default='', help='File to write log messages to')
+    args = parser.parse_args()
+
     # Silence the piston logger.
     logger = logging.getLogger()
     logger.setLevel(logging.CRITICAL)
@@ -74,18 +84,21 @@ def main():
     logger.addHandler(ch)
     logger.setLevel(logging.DEBUG)
 
-    # Command-line arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='', help='Path to config file')
-    parser.add_argument('-w', '--wif', type=str, help='Private key')
-    args = parser.parse_args()
-
     # Initialize config.
     config = Config()
     config.load(args.config)
 
+    if args.logfile:
+        config.set('log_file', args.logfile)
     if args.wif:
         config.set('vote_key', args.wif)
+
+    # Write log messages to a file, if given.
+    log_file = config.get('log_file', '')
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.INFO)
+        logger.addHandler(file_handler)
 
     try:
         monitor = Monitor(config)
@@ -115,7 +128,7 @@ def main():
                     time.sleep(1)
             except Exception as e:
                 logger.error(str(e))
-                traceback.print_exc()
+                logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
 
     except KeyboardInterrupt:
         logger.info('Received keyboard interrupt. Quitting.')
