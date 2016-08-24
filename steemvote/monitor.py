@@ -42,6 +42,8 @@ class Monitor(object):
         if self.max_voting_power < self.min_voting_power:
             raise ConfigError('"max_voting_power" must not be less than "min_voting_power"')
 
+        # Categories to ignore posts in.
+        self.blacklisted_categories = config.get('blacklist_categories', [])
         # Minimum age of posts to vote for.
         self.min_post_age = config.get_seconds('min_post_age', DEFAULT_MIN_POST_AGE)
         # Maximum age of posts to vote for.
@@ -101,6 +103,9 @@ class Monitor(object):
         if not author:
             return False
         if comment.is_reply() and not author.vote_replies:
+            return False
+        # Do not vote if the post is in a blacklisted category.
+        if comment.category in self.blacklisted_categories:
             return False
         # Do not vote if the post is too old.
         if time.time() - comment.timestamp > self.max_post_age:
