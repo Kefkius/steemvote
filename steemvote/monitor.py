@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 
 import grapheneapi
@@ -55,6 +56,7 @@ class Monitor(object):
         self.rpc_pass = config.get('rpc_pass')
 
         self.db = DB(config)
+        self.voting_lock = threading.Lock()
 
         # Time that stats were last calculated at.
         self.last_stats_update = 0
@@ -145,25 +147,26 @@ class Monitor(object):
 
     def vote_ready_comments(self):
         """Vote on the comments that are ready."""
-        comments = self.db.get_comments_to_vote(self.min_post_age)
-        for comment in comments:
-            # Skip if the rules have changed for the author.
-            if not self.should_vote(comment):
-                self.logger.debug('Skipping %s' % comment.identifier)
-                continue
-            author = self.config.get_author(comment.author, self.use_backup_authors())
-            tx = self.steem.vote(comment.identifier, author.weight, voter=self.voter_account)
-            try:
-                self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')
-                self.logger.info('Upvoted %s' % comment.identifier)
-            except grapheneapi.graphenewsrpc.RPCError as e:
-                already_voted_messages = [
-                    'Changing your vote requires',
-                    'Cannot vote again',
-                ]
-                if e.args and any(i in e.args[0] for i in already_voted_messages):
-                    self.logger.info('Skipping already-voted post %s' % comment.identifier)
-                else:
-                    raise e
+        with self.voting_lock:
+            comments = self.db.get_comments_to_vote(self.min_post_age)
+            for comment in comments:
+                # Skip if the rules have changed for the author.
+                if not self.should_vote(comment):
+                    self.logger.debug('Skipping %s' % comment.identifier)
+                    continue
+                author = self.config.get_author(comment.author, self.use_backup_authors())
+                tx = self.steem.vote(comment.identifier, author.weight, voter=self.voter_account)
+                try:
+                    self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')
+                    self.logger.info('Upvoted %s' % comment.identifier)
+                except grapheneapi.graphenewsrpc.RPCError as e:
+                    already_voted_messages = [
+                        'Changing your vote requires',
+                        'Cannot vote again',
+                    ]
+                    if e.args and any(i in e.args[0] for i in already_voted_messages):
+                        self.logger.info('Skipping already-voted post %s' % comment.identifier)
+                    else:
+                        raise e
 
-        self.db.update_voted_comments(comments)
+            self.db.update_voted_comments(comments)
