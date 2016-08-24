@@ -1,6 +1,7 @@
 *.pyc
 *.swp
 steemvote-config.json
+steemvote-config.yaml
 Steemvote.egg-info/
 database/
 dist/

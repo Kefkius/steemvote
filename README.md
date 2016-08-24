@@ -21,7 +21,8 @@ A configuration file specifies the authors to vote on, the key to sign votes wit
 Your configuration file can be supplied with a command-line argument (`steemvoter -c path/to/config.json`).
 If not supplied, steemvoter will look for the file `steemvote-config.json` in the current directory.
 
-An example config file, `example-steemvote-config.json`, is supplied.
+An example config file, `example-steemvote-config.json`, is supplied. *NOTE* that YAML is also valid
+for configuration files, in addition to JSON.
 
 The following config values are required:
 

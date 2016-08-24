@@ -1,6 +1,7 @@
 import json
 import os
 
+import yaml
 import humanfriendly
 
 from steemvote.models import Author
@@ -23,6 +24,7 @@ class ConfigError(Exception):
 class Config(object):
     def __init__(self):
         self.filepath = ''
+        self.config_format = 'json'
         self.options = {}
 
     def get(self, key, value=None):
@@ -61,17 +63,48 @@ class Config(object):
         options = dict(self.options)
         options['authors'] = [i.to_dict() for i in self.authors]
         options['backup_authors'] = [i.to_dict() for i in self.backup_authors]
-        s = json.dumps(options, indent=4, sort_keys=True)
+
+        if self.config_format == 'json':
+            s = json.dumps(options, indent=4, sort_keys=True)
+        elif self.config_format == 'yaml':
+            s = yaml.dump(options, indent=4)
         with open(self.filepath, 'w') as f:
             f.write(s)
+
+    def _load_json(self, filepath):
+        """Load JSON config."""
+        options = {}
+        try:
+            with open(filepath) as f:
+                options = json.load(f)
+            self.config_format = 'json'
+        except Exception:
+            pass
+        return options
+
+    def _load_yaml(self, filepath):
+        """Load YAML config."""
+        options = {}
+        try:
+            with open(filepath) as f:
+                options = yaml.load(f)
+            self.config_format = 'yaml'
+        except Exception:
+            pass
+        return options
 
     def load(self, filepath=''):
         if not filepath:
             filepath = 'steemvote-config.json'
         if not os.path.exists(filepath):
-            return
-        with open(filepath) as f:
-            options = json.load(f)
+            filepath = 'steemvote-config.yaml'
+            if not os.path.exists(filepath):
+                return
+
+        if filepath.endswith('.json'):
+            options = self._load_json(filepath)
+        elif filepath.endswith('.yaml'):
+            options = self._load_yaml(filepath)
         self.options = options
         self.filepath = filepath
 

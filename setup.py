@@ -31,6 +31,7 @@ setup(
     install_requires = [
         'humanfriendly',
         'plyvel',
+        'pyyaml',
         'steem-piston',
     ],
     packages = find_packages(),
