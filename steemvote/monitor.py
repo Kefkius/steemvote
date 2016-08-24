@@ -7,7 +7,7 @@ from piston.steem import Steem
 
 from steemvote.config import ConfigError
 from steemvote.db import DB
-from steemvote.models import Comment
+from steemvote.models import Comment, Voter
 
 # Default maximum remaining voting power.
 DEFAULT_MAXIMUM_VOTING_POWER = 0.95
@@ -48,10 +48,10 @@ class Monitor(object):
         self.min_post_age = config.get_seconds('min_post_age', DEFAULT_MIN_POST_AGE)
         # Maximum age of posts to vote for.
         self.max_post_age = config.get_seconds('max_post_age', DEFAULT_MAX_POST_AGE)
-        # Voter account name.
-        self.voter_account = config.get('voter_account_name', '')
-        # Vote private key.
-        self.wif = config.get('vote_key', '')
+        # Voter account.
+        voter_account = config.get('voter_account_name')
+        wif = config.get('vote_key')
+        self.voter = Voter(voter_account, wif)
 
         self.rpc_node = config.get('rpc_node')
         self.rpc_user = config.get('rpc_user')
@@ -62,8 +62,6 @@ class Monitor(object):
 
         # Time that stats were last calculated at.
         self.last_stats_update = 0
-        # Current voting power that we have.
-        self.current_voting_power = 0.0
 
     def is_running(self):
         return self.running
@@ -85,7 +83,7 @@ class Monitor(object):
         self.logger.debug('Connecting to Steem')
         # We use nobroadcast=True so we can handle exceptions better.
         self.steem = Steem(node=self.rpc_node, rpcuser=self.rpc_user,
-            rpcpassword=self.rpc_pass, wif=self.wif, nobroadcast=True,
+            rpcpassword=self.rpc_pass, wif=self.voter.wif, nobroadcast=True,
             apis=['database', 'network_broadcast'])
         self.db.load(self.steem)
 
@@ -95,7 +93,7 @@ class Monitor(object):
         Backup authors are voted for if the current voting power
         is greater than the maximum voting power.
         """
-        return self.current_voting_power > self.max_voting_power
+        return self.voter.current_voting_power > self.max_voting_power
 
     def should_vote(self, comment):
         """Get whether comment should be voted on."""
@@ -111,7 +109,7 @@ class Monitor(object):
         if time.time() - comment.timestamp > self.max_post_age:
             return False
         # Do not vote if we're using too much voting power.
-        if self.current_voting_power < self.min_voting_power:
+        if self.voter.current_voting_power < self.min_voting_power:
             return False
         return True
 
@@ -134,7 +132,7 @@ class Monitor(object):
     def get_stats(self):
         """Get runtime statistics."""
         stats = {}
-        stats['Current voting power'] = self.current_voting_power
+        stats['Current voting power'] = self.voter.current_voting_power
         return stats
 
     def update_stats(self):
@@ -142,13 +140,8 @@ class Monitor(object):
         now = time.time()
         if now - self.last_stats_update < self.stats_update_interval:
             return
-        self.update_voting_power_use()
+        self.voter.update(self.steem)
         self.last_stats_update = now
-
-    def update_voting_power_use(self):
-        """Recalculate the current voting power that we've used."""
-        obj = self.steem.rpc.get_accounts([self.voter_account])[0]
-        self.current_voting_power = obj['voting_power'] / 10000.0
 
     def vote_ready_comments(self):
         """Vote on the comments that are ready."""
@@ -160,7 +153,7 @@ class Monitor(object):
                     self.logger.debug('Skipping %s' % comment.identifier)
                     continue
                 author = self.config.get_author(comment.author, self.use_backup_authors())
-                tx = self.steem.vote(comment.identifier, author.weight, voter=self.voter_account)
+                tx = self.steem.vote(comment.identifier, author.weight, voter=self.voter.name)
                 try:
                     self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')
                     self.logger.info('Upvoted %s' % comment.identifier)
