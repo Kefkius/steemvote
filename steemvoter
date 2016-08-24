@@ -10,6 +10,7 @@ import sys
 import humanfriendly
 
 from steemvote.config import Config, ConfigError
+from steemvote.db import DBVersionError
 from steemvote.monitor import Monitor
 
 # Default interval for voting on eligible comments.
@@ -94,6 +95,9 @@ def main():
             raise ConfigError('The minimum value for "vote_interval" is 1 second')
     except ConfigError as e:
         print('Config Error: %s' % str(e))
+        sys.exit(1)
+    except DBVersionError as e:
+        print('Database Error: %s' % str(e))
         sys.exit(1)
 
     print_config(monitor)
