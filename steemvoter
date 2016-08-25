@@ -90,8 +90,12 @@ def run_steemvoter(config):
     logger.info('Starting steemvoter\n')
     try:
         voter.connect_to_steem()
+        voter.update()
         t.start()
         while 1:
+            # voter will update via RPC once every interval.
+            voter.update()
+
             now = time.time()
             try:
                 if now - last_vote > vote_interval:

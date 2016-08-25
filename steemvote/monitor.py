@@ -1,6 +1,5 @@
 import logging
 import sys
-import time
 import traceback
 
 from piston.steem import Steem
@@ -16,13 +15,8 @@ class Monitor(object):
         self.config = voter.config
         self.running = False
         self.logger = logging.getLogger(__name__)
-
+        # There must be authors to monitor.
         self.config.require('authors')
-
-        # Interval for calculating stats.
-        self.stats_update_interval = 20
-        # Time that stats were last calculated at.
-        self.last_stats_update = 0
 
     @property
     def db(self):
@@ -47,7 +41,6 @@ class Monitor(object):
         """Monitor new comments and process them."""
         iterator = self.steem.stream_comments()
         while self.is_running():
-            self.update_stats()
             try:
                 comment = Comment(self.steem, next(iterator))
                 if self.voter.should_vote(comment)[0]:
@@ -59,11 +52,3 @@ class Monitor(object):
                 self.logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
                 break
         self.logger.debug('Monitor thread stopped')
-
-    def update_stats(self):
-        """Update runtime statistics."""
-        now = time.time()
-        if now - self.last_stats_update < self.stats_update_interval:
-            return
-        self.voter.update(self.steem)
-        self.last_stats_update = now

@@ -31,7 +31,9 @@ class Voter(object):
         self.steem = None
         # Current voting power that we have.
         self.current_voting_power = 0.0
-        # Last time that info was updated via RPC.
+        # Interval for updating stats.
+        self.update_interval = 20
+        # Last time that stats were updated via RPC.
         self.last_update = 0
 
         # Load settings from config.
@@ -82,13 +84,18 @@ class Voter(object):
         self.db.close()
         self.logger.debug('Stopped')
 
-    def update(self, steem):
-        """Update voter info."""
-        d = steem.rpc.get_accounts([self.name])[0]
+    def update(self):
+        """Update voter stats."""
+        now = time.time()
+        # Only update stats every interval.
+        if now - self.last_update < self.update_interval:
+            return
+
+        d = self.steem.rpc.get_accounts([self.name])[0]
         # Calculate our current voting power.
         self.current_voting_power = d['voting_power'] / 10000.0
 
-        self.last_update = time.time()
+        self.last_update = now
 
     def get_voting_power(self):
         """Get our current voting power as a string."""
