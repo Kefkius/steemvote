@@ -12,28 +12,30 @@ import humanfriendly
 from steemvote.config import Config, ConfigError
 from steemvote.db import DBVersionError
 from steemvote.monitor import Monitor
+from steemvote.voter import Voter
 
 # Default interval for voting on eligible comments.
 DEFAULT_VOTE_INTERVAL = 10 # 10 seconds.
 
-def print_config(monitor):
-    """Print info regarding monitor's configuration."""
+def print_config(voter):
+    """Print info regarding voter's configuration."""
     header = '---------- Steemvote Configuration ----------'
     footer = '-' * len(header)
     # Pad lengths so that all values are aligned.
     format_str = '{key:{pad_length}}: {value}'.format
     print(header)
 
-    if monitor.config.get('log_file'):
-        print('Log file: %s\n' % monitor.config.get('log_file'))
+    config = voter.config
+    if config.get('log_file'):
+        print('Log file: %s\n' % config.get('log_file'))
 
     voting_config = OrderedDict()
-    voting_config['Minimum post age'] = humanfriendly.format_timespan(monitor.min_post_age)
-    voting_config['Maximum post age'] = humanfriendly.format_timespan(monitor.max_post_age)
-    min_voting_power = monitor.min_voting_power
+    voting_config['Minimum post age'] = humanfriendly.format_timespan(voter.min_post_age)
+    voting_config['Maximum post age'] = humanfriendly.format_timespan(voter.max_post_age)
+    min_voting_power = voter.min_voting_power
     voting_config['Minimum voting power'] = '{voting_power:.{decimals}%}'.format(voting_power=min_voting_power,
                                                 decimals=len(str(min_voting_power)) - 3)
-    max_voting_power = monitor.max_voting_power
+    max_voting_power = voter.max_voting_power
     voting_config['Maximum voting power'] = '{voting_power:.{decimals}%}'.format(voting_power=max_voting_power,
                                                 decimals=len(str(max_voting_power)) - 3)
 
@@ -44,12 +46,12 @@ def print_config(monitor):
     # Output author configuration.
     # Split author lists into lines of 5 items each.
 
-    author_names = sorted([i.name for i in monitor.config.authors])
+    author_names = sorted([i.name for i in config.authors])
     author_lists = []
     for i in range(0, len(author_names), 5):
         author_lists.append(author_names[i:i+5])
 
-    backup_author_names = sorted([i.name for i in monitor.config.backup_authors])
+    backup_author_names = sorted([i.name for i in config.backup_authors])
     backup_author_lists = []
     for i in range(0, len(backup_author_names), 5):
         backup_author_lists.append(backup_author_names[i:i+5])
@@ -65,6 +67,47 @@ def print_config(monitor):
         print('\t{}'.format(str(names)[1:-1]))
 
     print(footer)
+
+def run_steemvoter(config):
+    logger = logging.getLogger('steemvote')
+    try:
+        voter = Voter(config)
+        monitor = Monitor(voter)
+        vote_interval = config.get_seconds('vote_interval', DEFAULT_VOTE_INTERVAL)
+        # Vote interval cannot be less than one second.
+        if vote_interval < 1:
+            raise ConfigError('The minimum value for "vote_interval" is 1 second')
+    except ConfigError as e:
+        print('Config Error: %s' % str(e))
+        sys.exit(1)
+    except DBVersionError as e:
+        print('Database Error: %s' % str(e))
+        sys.exit(1)
+
+    print_config(voter)
+    t = threading.Thread(target=monitor.run)
+    last_vote = time.time()
+    logger.info('Starting steemvoter\n')
+    try:
+        voter.connect_to_steem()
+        t.start()
+        while 1:
+            now = time.time()
+            try:
+                if now - last_vote > vote_interval:
+                    voter.vote_for_comments()
+                    last_vote = now
+                else:
+                    time.sleep(1)
+            except Exception as e:
+                logger.error(str(e))
+                logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
+
+    except KeyboardInterrupt:
+        logger.debug('Received keyboard interrupt. Quitting.')
+
+    monitor.stop()
+    voter.close()
 
 def main():
     # Command-line arguments.
@@ -102,41 +145,7 @@ def main():
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
-    try:
-        monitor = Monitor(config)
-        vote_interval = config.get_seconds('vote_interval', DEFAULT_VOTE_INTERVAL)
-        # Vote interval cannot be less than one second.
-        if vote_interval < 1:
-            raise ConfigError('The minimum value for "vote_interval" is 1 second')
-    except ConfigError as e:
-        print('Config Error: %s' % str(e))
-        sys.exit(1)
-    except DBVersionError as e:
-        print('Database Error: %s' % str(e))
-        sys.exit(1)
-
-    print_config(monitor)
-    t = threading.Thread(target=monitor.run)
-    last_vote = time.time()
-    logger.info('Starting steemvoter\n')
-    try:
-        t.start()
-        while 1:
-            now = time.time()
-            try:
-                if now - last_vote > vote_interval:
-                    monitor.vote_ready_comments()
-                    last_vote = now
-                else:
-                    time.sleep(1)
-            except Exception as e:
-                logger.error(str(e))
-                logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
-
-    except KeyboardInterrupt:
-        logger.debug('Received keyboard interrupt. Quitting.')
-
-    monitor.stop()
+    return run_steemvoter(config)
 
 if __name__ == '__main__':
     main()

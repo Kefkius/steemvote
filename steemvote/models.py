@@ -4,29 +4,6 @@ import time
 
 from piston.steem import Post
 
-class Voter(object):
-    """The account that is voting."""
-    def __init__(self, name, wif):
-        self.name = name
-        self.wif = wif
-        # Current voting power that we have.
-        self.current_voting_power = 0.0
-
-        # Last time that info was updated via RPC.
-        self.last_update = 0
-
-    def update(self, steem):
-        """Update voter info."""
-        d = steem.rpc.get_accounts([self.name])[0]
-        # Calculate our current voting power.
-        self.current_voting_power = d['voting_power'] / 10000.0
-
-        self.last_update = time.time()
-
-    def get_voting_power(self):
-        """Get our current voting power as a string."""
-        return '{voting_power:.{decimals}%}'.format(voting_power=self.current_voting_power,
-                    decimals=len(str(self.current_voting_power)) - 3)
 
 class Author(object):
     """An author."""
