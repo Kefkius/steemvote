@@ -88,29 +88,30 @@ def run_steemvoter(config):
     t = threading.Thread(target=monitor.run)
     last_vote = time.time()
     logger.info('Starting steemvoter\n')
-    try:
-        voter.connect_to_steem()
-        voter.update()
-        t.start()
-        while 1:
+
+    voter.connect_to_steem()
+    voter.update()
+    t.start()
+    while 1:
+        now = time.time()
+        try:
             # voter will update via RPC once every interval.
             voter.update()
 
-            now = time.time()
-            try:
-                if now - last_vote > vote_interval:
-                    voter.vote_for_comments()
-                    last_vote = now
-                else:
-                    time.sleep(1)
-            except Exception as e:
-                logger.error(str(e))
-                logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
-
-    except KeyboardInterrupt:
-        logger.debug('Received keyboard interrupt. Quitting.')
+            if now - last_vote > vote_interval:
+                last_vote = now
+                voter.vote_for_comments()
+            else:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.debug('Received keyboard interrupt. Quitting.')
+            break
+        except Exception as e:
+            logger.error(str(e))
+            logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
 
     monitor.stop()
+    t.join()
     voter.close()
 
 def main():
