@@ -1,6 +1,8 @@
 import logging
+import sys
 import threading
 import time
+import traceback
 
 import grapheneapi
 from piston.steem import Steem
@@ -103,6 +105,9 @@ class Monitor(object):
             bool, and reason contains the reason not to vote
             if should_vote is False.
         """
+        # Do not vote if the post has curation disabled.
+        if not comment.allow_curation_rewards or not comment.allow_votes:
+            return False
         author = self.config.get_author(comment.author, self.use_backup_authors())
         if not author:
             return (False, 'author is unknown')
@@ -132,6 +137,7 @@ class Monitor(object):
                 self.logger.debug('Invalid comment. Skipping')
             except Exception as e:
                 self.logger.error(str(e))
+                self.logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
                 break
         self.logger.debug('Monitor thread stopped')
 

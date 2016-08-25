@@ -79,8 +79,9 @@ def main():
     logger.setLevel(logging.CRITICAL)
     # Initialize logging.
     logger = logging.getLogger('steemvote')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s [%(name)s] %(message)s')
     ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s] %(message)s'))
+    ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.setLevel(logging.DEBUG)
 
@@ -97,6 +98,7 @@ def main():
     log_file = config.get('log_file', '')
     if log_file:
         file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
@@ -116,6 +118,7 @@ def main():
     print_config(monitor)
     t = threading.Thread(target=monitor.run)
     last_vote = time.time()
+    logger.info('Starting steemvoter\n')
     try:
         t.start()
         while 1:
@@ -131,7 +134,7 @@ def main():
                 logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
 
     except KeyboardInterrupt:
-        logger.info('Received keyboard interrupt. Quitting.')
+        logger.debug('Received keyboard interrupt. Quitting.')
 
     monitor.stop()
 
