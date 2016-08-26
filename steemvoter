@@ -85,13 +85,12 @@ def run_steemvoter(config):
         sys.exit(1)
 
     print_config(voter)
-    t = threading.Thread(target=monitor.run)
     last_vote = time.time()
     logger.info('Starting steemvoter\n')
 
     voter.connect_to_steem()
     voter.update()
-    t.start()
+    monitor.start()
     while 1:
         now = time.time()
         try:
@@ -111,7 +110,6 @@ def run_steemvoter(config):
             logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
 
     monitor.stop()
-    t.join()
     voter.close()
 
 def main():

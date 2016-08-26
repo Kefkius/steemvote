@@ -154,7 +154,7 @@ class Voter(object):
                 tx = self.steem.vote(comment.identifier, author.weight, voter=self.name)
                 try:
                     self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')
-                    self.logger.info('Upvoted %s' % comment.identifier)
+                    self.logger.info('Voted on %s' % comment.identifier)
                 except grapheneapi.graphenewsrpc.RPCError as e:
                     already_voted_messages = [
                         'Changing your vote requires',

@@ -45,14 +45,7 @@ class Author(object):
 class Comment(Post):
     """A comment."""
     def __init__(self, steem, post):
-        if isinstance(post, str):
-            super(Comment, self).__init__(steem, post)
-        else:
-            attrs = [attr for attr in dir(post) if not attr.startswith('_')]
-            d = {attr: getattr(post, attr) for attr in attrs}
-            if not d.get('author'):
-                raise ValueError('An author is required')
-            super(Comment, self).__init__(steem, d)
+        super(Comment, self).__init__(steem, post)
         self.timestamp = int(self.created_parsed.replace(tzinfo=datetime.timezone.utc).timestamp())
 
     @classmethod
