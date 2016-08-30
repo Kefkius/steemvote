@@ -8,16 +8,6 @@ from piston.steem import Steem
 from steemvote.config import ConfigError
 from steemvote.db import DB
 
-# Default maximum remaining voting power.
-DEFAULT_MAXIMUM_VOTING_POWER = 0.95 # 95%
-# Default minimum remaining voting power.
-DEFAULT_MINIMUM_VOTING_POWER = 0.90 # 90%
-# Default minimum age of posts to vote on.
-DEFAULT_MIN_POST_AGE = 60 # 1 minute.
-# Default maximum age of posts to vote on.
-DEFAULT_MAX_POST_AGE = 2 * 24 * 60 * 60 # 2 days.
-
-
 class Voter(object):
     """Voter settings and functionality.
 
@@ -56,16 +46,16 @@ class Voter(object):
         with self.config_lock:
             config = self.config
             # Minimum age of posts to vote for.
-            self.min_post_age = config.get_seconds('min_post_age', DEFAULT_MIN_POST_AGE)
+            self.min_post_age = config.get_seconds('min_post_age')
             # Maximum age of posts to vote for.
-            self.max_post_age = config.get_seconds('max_post_age', DEFAULT_MAX_POST_AGE)
+            self.max_post_age = config.get_seconds('max_post_age')
 
             # Minimum available voting power.
-            self.min_voting_power = config.get_decimal('min_voting_power', DEFAULT_MINIMUM_VOTING_POWER)
+            self.min_voting_power = config.get_decimal('min_voting_power')
             # Maximum available voting power.
             # Steemvote will attempt to use more power than normal if current
             # voting power is greater than this.
-            self.max_voting_power = config.get_decimal('max_voting_power', DEFAULT_MAXIMUM_VOTING_POWER)
+            self.max_voting_power = config.get_decimal('max_voting_power')
             # The maximum voting power must not be less than the minimum voting power.
             if self.max_voting_power < self.min_voting_power:
                 raise ConfigError('"max_voting_power" must not be less than "min_voting_power"')

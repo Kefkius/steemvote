@@ -6,6 +6,15 @@ import humanfriendly
 
 from steemvote.models import Author
 
+# Default maximum remaining voting power.
+DEFAULT_MAX_VOTING_POWER = 0.95 # 95%
+# Default minimum remaining voting power.
+DEFAULT_MIN_VOTING_POWER = 0.90 # 90%
+# Default minimum age of posts to vote on.
+DEFAULT_MIN_POST_AGE = 60 # 1 minute.
+# Default maximum age of posts to vote on.
+DEFAULT_MAX_POST_AGE = 2 * 24 * 60 * 60 # 2 days.
+
 def get_decimal(data):
     """Parse data into a decimal."""
     if isinstance(data, float):
@@ -26,9 +35,23 @@ class Config(object):
         self.filepath = ''
         self.config_format = 'json'
         self.options = {}
+        self.defaults = {
+            'min_post_age': DEFAULT_MIN_POST_AGE,
+            'max_post_age': DEFAULT_MAX_POST_AGE,
+            'min_voting_power': DEFAULT_MIN_VOTING_POWER,
+            'max_voting_power': DEFAULT_MAX_VOTING_POWER,
+        }
 
     def get(self, key, value=None):
-        return self.options.get(key, value)
+        """Get a value.
+
+        If no default is specified, the default in self.defaults will
+        be used if no value is found.
+        """
+        result = self.options.get(key, value)
+        if result is None and value is None:
+            return self.defaults.get(key)
+        return result
 
     def get_decimal(self, key, value=None):
         """Get a value that represents a percentage."""
