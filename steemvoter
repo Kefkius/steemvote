@@ -7,15 +7,12 @@ import time
 import traceback
 import sys
 
-from PyQt4.QtGui import QApplication
-
 import humanfriendly
 
 from steemvote.config import Config, ConfigError
 from steemvote.db import DBVersionError
 from steemvote.monitor import Monitor
 from steemvote.voter import Voter
-from steemvote.gui import SteemvoteWindow
 
 # Default interval for voting on eligible comments.
 DEFAULT_VOTE_INTERVAL = 10 # 10 seconds.
@@ -116,6 +113,10 @@ def run_steemvoter(config):
     voter.close()
 
 def run_steemvoter_qt(config):
+    # Putting these imports here allows the command-line to be used
+    # without PyQt4 installed.
+    from PyQt4.QtGui import QApplication
+    from steemvote.gui import SteemvoteWindow
     app = QApplication(sys.argv)
     try:
         window = SteemvoteWindow(config, app)
