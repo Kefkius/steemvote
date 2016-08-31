@@ -10,6 +10,7 @@ from PyQt4.QtCore import *
 from steemvote.monitor import Monitor
 from steemvote.voter import Voter
 from steemvote.gui.author import AuthorsWidget
+from steemvote.gui.comment import CommentsWidget
 from steemvote.gui.settings import SettingsWidget
 
 DEFAULT_VOTE_INTERVAL = 10 # 10 seconds.
@@ -40,16 +41,21 @@ class SteemvoteWindow(QMainWindow):
         self.voter = Voter(config)
         self.monitor = Monitor(self.voter)
 
+        # Timer-related attributes.
+
         self.last_vote = 0
         self.vote_interval = config.get_seconds('vote_interval', DEFAULT_VOTE_INTERVAL)
         # Vote interval cannot be less than one second.
         if self.vote_interval < 1:
             raise ConfigError('The minimum value for "vote_interval" is 1 second')
-
+        # The set of tracked comments as of the last timer action.
+        self.last_tracked_comments = set()
 
         self.timer.onTimer.connect(self.timer_actions)
 
+
         self.tabs = QTabWidget()
+        self.tabs.addTab(self.create_status_tab(), 'Status')
         self.tabs.addTab(self.create_settings_tab(), 'Settings')
         self.tabs.addTab(self.create_authors_tab(), 'Authors')
         self.tabs.addTab(self.create_backup_authors_tab(), 'Backup Authors')
@@ -77,6 +83,18 @@ class SteemvoteWindow(QMainWindow):
         self.monitor.stop()
         self.voter.close()
 
+    def create_status_tab(self):
+        desc = QLabel('The posts that are currently being tracked are displayed below:')
+        desc.setWordWrap(True)
+        self.comments_widget = CommentsWidget(self.voter.db)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(desc)
+        vbox.addWidget(self.comments_widget)
+        w = QWidget()
+        w.setLayout(vbox)
+        return w
+
     def create_settings_tab(self):
         self.settings_widget = SettingsWidget(self.config)
         self.settings_widget.settingsChanged.connect(lambda: self.voter.load_settings())
@@ -102,6 +120,12 @@ class SteemvoteWindow(QMainWindow):
         except Exception as e:
             self.logger.error(str(e))
             self.logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
+
+        # Update tracked comments.
+        tracked_comments = set(self.voter.db.tracked_comments.values())
+        if self.last_tracked_comments != tracked_comments:
+            self.comments_widget.update_comments()
+            self.last_tracked_comments = tracked_comments
 
         self.voting_power_label.setText('Voting power: %s' % self.voter.get_voting_power())
 

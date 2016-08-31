@@ -59,3 +59,8 @@ class Comment(Post):
 
     def is_reply(self):
         return True if self.parent_author else False
+
+    def get_url(self, domain='https://steemit.com'):
+        """Get the URL for this comment at domain."""
+        domain = domain.rstrip('/')
+        return domain + self.url
