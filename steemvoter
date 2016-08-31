@@ -7,12 +7,15 @@ import time
 import traceback
 import sys
 
+from PyQt4.QtGui import QApplication
+
 import humanfriendly
 
 from steemvote.config import Config, ConfigError
 from steemvote.db import DBVersionError
 from steemvote.monitor import Monitor
 from steemvote.voter import Voter
+from steemvote.gui import SteemvoteWindow
 
 # Default interval for voting on eligible comments.
 DEFAULT_VOTE_INTERVAL = 10 # 10 seconds.
@@ -112,10 +115,26 @@ def run_steemvoter(config):
     monitor.stop()
     voter.close()
 
+def run_steemvoter_qt(config):
+    app = QApplication(sys.argv)
+    try:
+        window = SteemvoteWindow(config, app)
+    except ConfigError as e:
+        print('Config Error: %s' % str(e))
+        sys.exit(1)
+    except DBVersionError as e:
+        print('Database Error: %s' % str(e))
+        sys.exit(1)
+
+    sys.exit(window.main())
+
+
+
 def main():
     # Command-line arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default='', help='Path to config file')
+    parser.add_argument('-t', '--terminal', action='store_true', default=False, help='Do not launch a window')
     parser.add_argument('-w', '--wif', type=str, help='Private key')
     parser.add_argument('--logfile', type=str, default='', help='File to write log messages to')
     args = parser.parse_args()
@@ -148,7 +167,10 @@ def main():
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
-    return run_steemvoter(config)
+    if args.terminal:
+        return run_steemvoter(config)
+    else:
+        return run_steemvoter_qt(config)
 
 if __name__ == '__main__':
     main()

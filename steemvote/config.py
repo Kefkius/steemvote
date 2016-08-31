@@ -163,7 +163,7 @@ class Config(object):
 
     def set_backup_authors(self, backup_authors):
         """Set backup authors and save."""
-        if not all(isinstance(i, Author) for i in authors):
+        if not all(isinstance(i, Author) for i in backup_authors):
             raise TypeError('A list of authors is required')
         self.backup_authors = backup_authors
         self.save()
