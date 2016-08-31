@@ -1,3 +1,4 @@
+import datetime
 import logging
 import threading
 import time
@@ -7,6 +8,9 @@ from piston.steem import Steem
 
 from steemvote.config import ConfigError
 from steemvote.db import DB
+
+STEEMIT_100_PERCENT = 10000
+STEEMIT_VOTE_REGENERATION_SECONDS = 5*60*60*24 # 5 days
 
 class Voter(object):
     """Voter settings and functionality.
@@ -88,14 +92,20 @@ class Voter(object):
         if now - self.last_update < self.update_interval:
             return
 
-        response = self.steem.rpc.get_accounts([self.name])
-        try:
-            d = response[0]
-        except Exception as e:
-            self.logger.error('Invalid get_accounts() response: %s' % response)
-            raise e
+        d = self.steem.rpc.get_account(self.name)
+        if 'voting_power' not in d.keys():
+            msg = 'Invalid get_accounts() response: %s' % d
+            self.logger.error(msg)
+            raise Exception(msg)
         # Calculate our current voting power.
-        self.current_voting_power = d['voting_power'] / 10000.0
+        # From vote_evaluator::do_apply in https://github.com/steemit/steem/blob/master/libraries/chain/steem_evaluator.cpp.
+        last_vote_time = datetime.datetime.strptime(d.get('last_vote_time', "1970-01-01T00:00:00"), '%Y-%m-%dT%H:%M:%S')
+        last_vote_time = last_vote_time.replace(tzinfo=datetime.timezone.utc).timestamp()
+        elapsed_seconds = int(now - last_vote_time)
+
+        regenerated_power = (STEEMIT_100_PERCENT * elapsed_seconds) / STEEMIT_VOTE_REGENERATION_SECONDS
+        current_power = min(d['voting_power'] + regenerated_power, STEEMIT_100_PERCENT)
+        self.current_voting_power = round(float(current_power) / STEEMIT_100_PERCENT, 4)
 
         self.last_update = now
 
