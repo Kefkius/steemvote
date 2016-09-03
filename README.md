@@ -37,6 +37,7 @@ Each object needs a `name` value, which is the name of the author.
 
 Optional values for each author:
 
+- `priority`: The priority (explained below) that the author has (Default: `normal`).
 - `vote_replies`: Whether to vote on all replies the author makes, in addition to their regular posts (Default: `false`).
 - `weight`: The weight to vote with. `100.0` represents an upvote, and `-100.0` represents a downvote (Default: `100.0`).
 
@@ -59,10 +60,11 @@ The following values can be specified as seconds or as human-readable strings (e
 - `min_post_age`: The age a post must be before it is voted on (Default: `1 minute`).
 - `vote_interval`: The timespan that steemvoter waits between collecting and voting on eligible comments (Default: `10 seconds`).
 
-The following values can be specified as decimals or as human-readable percentages (e.g. `"min_voting_power": "75%"`):
+The following values can be specified as decimals or as human-readable percentages (e.g. `"priority_high": "75%"`):
 
-- `min_voting_power`: The fraction of available voting power that steemvote won't vote below (Default: `90%`).
-- `max_voting_power`: The fraction of available voting power that steemvote will vote aggressively above (Default: `95%`).
+- `priority_high`: The minimum fraction of voting power that you must have to vote for high priority comments (Default: `80%`).
+- `priority_normal`: The minimum fraction of voting power that you must have to vote for normal priority comments (Default: `90%`).
+- `priority_low`: The minimum fraction of voting power that you must have to vote for low priority comments (Default: `95%`).
 
 ### Database
 

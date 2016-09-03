@@ -6,14 +6,17 @@ import humanfriendly
 
 from steemvote.models import Author
 
-# Default maximum remaining voting power.
-DEFAULT_MAX_VOTING_POWER = 0.95 # 95%
-# Default minimum remaining voting power.
-DEFAULT_MIN_VOTING_POWER = 0.90 # 90%
 # Default minimum age of posts to vote on.
 DEFAULT_MIN_POST_AGE = 60 # 1 minute.
 # Default maximum age of posts to vote on.
 DEFAULT_MAX_POST_AGE = 2 * 24 * 60 * 60 # 2 days.
+
+# Default high priority voting power.
+DEFAULT_PRIORITY_HIGH = 0.8 # 80%
+# Default normal priority voting power.
+DEFAULT_PRIORITY_NORMAL = 0.9 # 90%
+# Default low priority voting power.
+DEFAULT_PRIORITY_LOW = 0.95 # 95%
 
 def get_decimal(data):
     """Parse data into a decimal."""
@@ -38,8 +41,10 @@ class Config(object):
         self.defaults = {
             'min_post_age': DEFAULT_MIN_POST_AGE,
             'max_post_age': DEFAULT_MAX_POST_AGE,
-            'min_voting_power': DEFAULT_MIN_VOTING_POWER,
-            'max_voting_power': DEFAULT_MAX_VOTING_POWER,
+
+            'priority_high': DEFAULT_PRIORITY_HIGH,
+            'priority_normal': DEFAULT_PRIORITY_NORMAL,
+            'priority_low': DEFAULT_PRIORITY_LOW,
         }
 
     def get(self, key, value=None):
@@ -85,7 +90,6 @@ class Config(object):
     def save(self):
         options = dict(self.options)
         options['authors'] = [i.to_dict() for i in self.authors]
-        options['backup_authors'] = [i.to_dict() for i in self.backup_authors]
 
         if self.config_format == 'json':
             s = json.dumps(options, indent=4, sort_keys=True)
@@ -139,18 +143,9 @@ class Config(object):
         authors = self.get('authors', [])
         self.authors = [Author.from_config(i) for i in authors]
 
-        backup_authors = self.get('backup_authors', [])
-        self.backup_authors = [Author.from_config(i) for i in backup_authors]
-
-    def get_author(self, name, include_backup_authors=False):
+    def get_author(self, name):
         """Get an author by name."""
         for author in self.authors:
-            if author.name == name:
-                return author
-        if not include_backup_authors:
-            return
-        # Search for the author in the backup authors list.
-        for author in self.backup_authors:
             if author.name == name:
                 return author
 
@@ -159,11 +154,4 @@ class Config(object):
         if not all(isinstance(i, Author) for i in authors):
             raise TypeError('A list of authors is required')
         self.authors = authors
-        self.save()
-
-    def set_backup_authors(self, backup_authors):
-        """Set backup authors and save."""
-        if not all(isinstance(i, Author) for i in backup_authors):
-            raise TypeError('A list of authors is required')
-        self.backup_authors = backup_authors
         self.save()

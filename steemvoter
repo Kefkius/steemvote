@@ -11,6 +11,7 @@ import humanfriendly
 
 from steemvote.config import Config, ConfigError
 from steemvote.db import DBVersionError
+from steemvote.models import Priority
 from steemvote.monitor import Monitor
 from steemvote.voter import Voter
 
@@ -32,12 +33,11 @@ def print_config(voter):
     voting_config = OrderedDict()
     voting_config['Minimum post age'] = humanfriendly.format_timespan(voter.min_post_age)
     voting_config['Maximum post age'] = humanfriendly.format_timespan(voter.max_post_age)
-    min_voting_power = voter.min_voting_power
-    voting_config['Minimum voting power'] = '{voting_power:.{decimals}%}'.format(voting_power=min_voting_power,
-                                                decimals=len(str(min_voting_power)) - 3)
-    max_voting_power = voter.max_voting_power
-    voting_config['Maximum voting power'] = '{voting_power:.{decimals}%}'.format(voting_power=max_voting_power,
-                                                decimals=len(str(max_voting_power)) - 3)
+    for priority_level in Priority:
+        key = 'Minimum voting power (%s priority)' % priority_level.value
+        value = voter.priority_voting_powers[priority_level]
+        voting_config[key] = '{voting_power:.{decimals}%}'.format(voting_power=value,
+                                                decimals=len(str(value)) - 3)
 
     longest_key_length = max([len(i) for i in voting_config.keys()])
     for k, v in voting_config.items():
@@ -46,25 +46,25 @@ def print_config(voter):
     # Output author configuration.
     # Split author lists into lines of 5 items each.
 
-    author_names = sorted([i.name for i in config.authors])
-    author_lists = []
-    for i in range(0, len(author_names), 5):
-        author_lists.append(author_names[i:i+5])
+    authors_config = OrderedDict()
+    authors = sorted(config.authors, key = lambda i: i.name)
+    for priority_level in Priority:
+        names = [i.name for i in [author for author in authors if author.priority == priority_level]]
+        lists = []
+        for i in range(0, len(names), 5):
+            lists.append(names[i:i+5])
 
-    backup_author_names = sorted([i.name for i in config.backup_authors])
-    backup_author_lists = []
-    for i in range(0, len(backup_author_names), 5):
-        backup_author_lists.append(backup_author_names[i:i+5])
-
-    print('')
-    print('Authors (total: {:,}):'.format(len(author_names)))
-    for names in author_lists:
-        print('\t{}'.format(str(names)[1:-1]))
+        authors_config['%s priority' % priority_level.value.capitalize()] = lists
 
     print('')
-    print('Backup authors (total: {:,}):'.format(len(backup_author_names)))
-    for names in backup_author_lists:
-        print('\t{}'.format(str(names)[1:-1]))
+    print('Authors:')
+    for k, v in authors_config.items():
+        if not len(v):
+            continue
+        print(' - %s:' % k)
+        for names in v:
+            print('\t{}'.format(str(names)[1:-1]))
+
 
     print(footer)
 
@@ -79,9 +79,11 @@ def run_steemvoter(config):
             raise ConfigError('The minimum value for "vote_interval" is 1 second')
     except ConfigError as e:
         print('Config Error: %s' % str(e))
+        return
         sys.exit(1)
     except DBVersionError as e:
         print('Database Error: %s' % str(e))
+        return
         sys.exit(1)
 
     print_config(voter)

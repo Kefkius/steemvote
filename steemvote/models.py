@@ -1,16 +1,24 @@
 import datetime
+import enum
 import struct
 import time
 
 from piston.steem import Post
 
 
+class Priority(enum.Enum):
+    """Constants for author priority values."""
+    low = 'low'
+    normal = 'normal'
+    high = 'high'
+
 class Author(object):
     """An author."""
-    def __init__(self, name, vote_replies=False, weight=100.0):
+    def __init__(self, name, vote_replies=False, weight=100.0, priority=Priority.normal):
         self.name = name
         self.vote_replies = vote_replies
         self.weight = weight
+        self.priority = priority
 
     @classmethod
     def from_config(cls, value):
@@ -33,13 +41,15 @@ class Author(object):
         weight = d.get('weight', 100.0)
         if not isinstance(weight, float):
             raise TypeError('A float is required for weight')
-        return cls(name, vote_replies=vote_replies, weight=weight)
+        priority = Priority(d.get('priority', 'normal'))
+        return cls(name, vote_replies=vote_replies, weight=weight, priority=priority)
 
     def to_dict(self):
         return {
             'name': self.name,
             'vote_replies': self.vote_replies,
             'weight': self.weight,
+            'priority': self.priority.value,
         }
 
 class Comment(Post):

@@ -8,6 +8,7 @@ from piston.steem import Steem
 
 from steemvote.config import ConfigError
 from steemvote.db import DB
+from steemvote.models import Priority
 
 STEEMIT_100_PERCENT = 10000
 STEEMIT_VOTE_REGENERATION_SECONDS = 5*60*60*24 # 5 days
@@ -53,16 +54,17 @@ class Voter(object):
             self.min_post_age = config.get_seconds('min_post_age')
             # Maximum age of posts to vote for.
             self.max_post_age = config.get_seconds('max_post_age')
+            if self.min_post_age > self.max_post_age:
+                raise ValueError('Minimum post age cannot be more than maximum post age')
 
-            # Minimum available voting power.
-            self.min_voting_power = config.get_decimal('min_voting_power')
-            # Maximum available voting power.
-            # Steemvote will attempt to use more power than normal if current
-            # voting power is greater than this.
-            self.max_voting_power = config.get_decimal('max_voting_power')
-            # The maximum voting power must not be less than the minimum voting power.
-            if self.max_voting_power < self.min_voting_power:
-                raise ConfigError('"max_voting_power" must not be less than "min_voting_power"')
+            # Required remaining voting power to vote for each priority of comments.
+            self.priority_voting_powers = priorities = {
+                Priority.low: config.get_decimal('priority_low'),
+                Priority.normal: config.get_decimal('priority_normal'),
+                Priority.high: config.get_decimal('priority_high'),
+            }
+            if not priorities[Priority.low] >= priorities[Priority.normal] >= priorities[Priority.high]:
+                raise ValueError('Priority voting powers must be: low >= normal >= high')
 
             # Categories to ignore posts in.
             self.blacklisted_categories = config.get('blacklist_categories', [])
@@ -114,13 +116,9 @@ class Voter(object):
         return '{voting_power:.{decimals}%}'.format(voting_power=self.current_voting_power,
                     decimals=len(str(self.current_voting_power)) - 3)
 
-    def use_backup_authors(self):
-        """Get whether to vote for backup authors.
-
-        Backup authors are voted for if the current voting power
-        is greater than the maximum voting power.
-        """
-        return self.current_voting_power > self.max_voting_power
+    def is_prioritized(self, priority):
+        """Get whether a comment with the given priority should be voted for."""
+        return self.current_voting_power >= self.priority_voting_powers[priority]
 
     def should_track(self, comment):
         """Get whether comment should be tracked.
@@ -137,7 +135,7 @@ class Voter(object):
             return (False, 'comment does not allow curation')
         with self.config_lock:
             # Check if the author isn't known to steemvote.
-            author = self.config.get_author(comment.author, include_backup_authors=True)
+            author = self.config.get_author(comment.author)
             if not author:
                 return (False, 'author is unknown')
             # Check if we omit replies by the author.
@@ -168,13 +166,10 @@ class Voter(object):
             # Check if the comment is too young.
             if time.time() - comment.timestamp < self.min_post_age:
                 return (False, 'comment is too young')
-            # Check if we're currently voting for backup authors.
-            author = self.config.get_author(comment.author, self.use_backup_authors())
-            if not author:
-                return (False, 'author is a backup')
-            # Check if we're using too much voting power.
-            if self.current_voting_power < self.min_voting_power:
-                return (False, 'voter does not have enough voting power (current: %s)' % self.get_voting_power())
+            # Check if the priority is high enough given our voting power.
+            author = self.config.get_author(comment.author)
+            if not self.is_prioritized(author.priority):
+                return (False, 'author does not have a high enough priority')
         return (True, '')
 
     def _vote(self, identifier, weight):
@@ -215,7 +210,7 @@ class Voter(object):
                         self.logger.debug('Stop tracking %s because %s' % (comment.identifier, reason))
                 # Vote for the comment.
                 else:
-                    author = self.config.get_author(comment.author, self.use_backup_authors())
+                    author = self.config.get_author(comment.author)
                     self._vote(comment.identifier, author.weight)
                     voted_comments.append(comment)
 
