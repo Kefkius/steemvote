@@ -29,7 +29,7 @@ class DB(object):
 
         self.db = plyvel.DB(self.path, create_if_missing=True)
         self.check_version()
-        self.comment_lock = threading.Lock()
+        self.comment_lock = threading.RLock()
 
         self.tracked_comments = {}
 
@@ -86,17 +86,17 @@ class DB(object):
                 wb.put(comment.serialize_key(), b'1')
             wb.write()
 
-            for identifier in [comment.identifier for comment in comments]:
-                if self.tracked_comments.get(identifier):
-                    del self.tracked_comments[identifier]
+            self.remove_tracked_comments([comment.identifier for comment in comments])
 
-    def get_comments_to_vote(self, minimum_age):
-        """Get the comments that are ready for voting."""
-        now = time.time()
-        comments = []
+    def get_tracked_comments(self):
+        """Get the comments that are being tracked."""
         with self.comment_lock:
-            for comment in self.tracked_comments.values():
-                if now - comment.timestamp > minimum_age:
-                    comments.append(comment)
-
+            comments = list(self.tracked_comments.values())
         return comments
+
+    def remove_tracked_comments(self, identifiers):
+        """Stop tracking comments with the given identifiers."""
+        with self.comment_lock:
+            for identifier in identifiers:
+                if identifier in self.tracked_comments:
+                    del self.tracked_comments[identifier]

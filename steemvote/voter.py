@@ -122,6 +122,35 @@ class Voter(object):
         """
         return self.current_voting_power > self.max_voting_power
 
+    def should_track(self, comment):
+        """Get whether comment should be tracked.
+
+        This is a less-strict form of should_vote().
+
+        Returns:
+            A 2-tuple of (should_track, reason). should_track is a
+            bool, and reason contains the reason not to track the comment
+            if should_track is False.
+        """
+        # Check if the comment has curation disabled.
+        if not comment.allow_curation_rewards or not comment.allow_votes:
+            return (False, 'comment does not allow curation')
+        with self.config_lock:
+            # Check if the author isn't known to steemvote.
+            author = self.config.get_author(comment.author, include_backup_authors=True)
+            if not author:
+                return (False, 'author is unknown')
+            # Check if we omit replies by the author.
+            if comment.is_reply() and not author.vote_replies:
+                return (False, 'comment is a reply')
+            # Check if the post is in a blacklisted category.
+            if comment.category in self.blacklisted_categories:
+                return (False, 'comment is in a blacklisted category')
+            # Check if the post is too old.
+            if time.time() - comment.timestamp > self.max_post_age:
+                return (False, 'comment is too old')
+        return (True, '')
+
     def should_vote(self, comment):
         """Get whether comment should be voted on.
 
@@ -130,25 +159,23 @@ class Voter(object):
             bool, and reason contains the reason not to vote
             if should_vote is False.
         """
+        # First check against the less-strict should_track() rules.
+        should_track = self.should_track(comment)
+        if not should_track[0]:
+            return should_track
+        # Then check against rules that depend on context.
         with self.config_lock:
-            # Do not vote if the post has curation disabled.
-            if not comment.allow_curation_rewards or not comment.allow_votes:
-                return False
+            # Check if the comment is too young.
+            if time.time() - comment.timestamp < self.min_post_age:
+                return (False, 'comment is too young')
+            # Check if we're currently voting for backup authors.
             author = self.config.get_author(comment.author, self.use_backup_authors())
             if not author:
-                return (False, 'author is unknown')
-            if comment.is_reply() and not author.vote_replies:
-                return (False, 'comment is a reply')
-            # Do not vote if the post is in a blacklisted category.
-            if comment.category in self.blacklisted_categories:
-                return (False, 'comment is in a blacklisted category')
-            # Do not vote if the post is too old.
-            if time.time() - comment.timestamp > self.max_post_age:
-                return (False, 'comment is too old')
-            # Do not vote if we're using too much voting power.
+                return (False, 'author is a backup')
+            # Check if we're using too much voting power.
             if self.current_voting_power < self.min_voting_power:
                 return (False, 'voter does not have enough voting power (current: %s)' % self.get_voting_power())
-            return (True, '')
+        return (True, '')
 
     def _vote(self, identifier, weight):
         """Create and broadcast a vote for identifier."""
@@ -171,15 +198,26 @@ class Voter(object):
         if not self.steem:
             raise Exception('Not connected to a Steem node')
 
-        with self.voting_lock:
-            comments = self.db.get_comments_to_vote(self.min_post_age)
-            for comment in comments:
-                # Skip if the rules have changed for the author.
-                should_vote, reason = self.should_vote(comment)
-                if not should_vote:
-                    self.logger.debug('Skipping %s because %s' % (comment.identifier, reason))
-                    continue
-                author = self.config.get_author(comment.author, self.use_backup_authors())
-                self._vote(comment.identifier, author.weight)
+        # Comments that have been voted on.
+        voted_comments = []
+        # Identifiers of comments that should no longer be tracked.
+        old_identifiers = []
 
-            self.db.update_voted_comments(comments)
+        with self.voting_lock:
+            comments = self.db.get_tracked_comments()
+            for comment in comments:
+                # Skip if the comment shouldn't be voted on now.
+                if not self.should_vote(comment)[0]:
+                    # Check whether to stop tracking the comment.
+                    keep_tracking, reason = self.should_track(comment)
+                    if not keep_tracking:
+                        old_identifiers.append(comment.identifier)
+                        self.logger.debug('Stop tracking %s because %s' % (comment.identifier, reason))
+                # Vote for the comment.
+                else:
+                    author = self.config.get_author(comment.author, self.use_backup_authors())
+                    self._vote(comment.identifier, author.weight)
+                    voted_comments.append(comment)
+
+            self.db.update_voted_comments(voted_comments)
+            self.db.remove_tracked_comments(old_identifiers)

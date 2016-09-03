@@ -83,7 +83,7 @@ class Monitor(threading.Thread):
         """Handler for comment operations."""
         try:
             comment = Comment(self.steem, d)
-            if self.voter.should_vote(comment)[0]:
+            if self.voter.should_track(comment)[0]:
                 self.db.add_comment(comment)
         except ValueError as e:
             self.logger.debug('Invalid comment. Skipping')
