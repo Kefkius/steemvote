@@ -58,7 +58,6 @@ class SteemvoteWindow(QMainWindow):
         self.tabs.addTab(self.create_status_tab(), 'Status')
         self.tabs.addTab(self.create_settings_tab(), 'Settings')
         self.tabs.addTab(self.create_authors_tab(), 'Authors')
-        self.tabs.addTab(self.create_backup_authors_tab(), 'Backup Authors')
 
         # Status bar widgets.
         self.voting_power_label = QLabel()
@@ -101,12 +100,8 @@ class SteemvoteWindow(QMainWindow):
         return self.settings_widget
 
     def create_authors_tab(self):
-        self.authors_widget = AuthorsWidget(self.config, is_backup_authors=False)
+        self.authors_widget = AuthorsWidget(self.config)
         return self.authors_widget
-
-    def create_backup_authors_tab(self):
-        self.backup_authors_widget = AuthorsWidget(self.config, is_backup_authors=True)
-        return self.backup_authors_widget
 
     def timer_actions(self):
         now = time.time()
@@ -131,4 +126,4 @@ class SteemvoteWindow(QMainWindow):
 
 
     def sizeHint(self):
-        return QSize(600, 400)
+        return QSize(900, 480)

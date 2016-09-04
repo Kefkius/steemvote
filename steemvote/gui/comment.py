@@ -76,7 +76,7 @@ class CommentsWidget(QWidget):
         super(CommentsWidget, self).__init__(parent)
         self.db = db
         self.model = CommentsModel()
-        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model = QSortFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.model)
 
         self.view = QTableView()

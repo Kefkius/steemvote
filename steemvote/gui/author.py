@@ -1,7 +1,7 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from steemvote.models import Author
+from steemvote.models import Author, Priority
 from steemvote.gui.util import floated_buttons, Separator
 
 def yes_or_no(value):
@@ -9,21 +9,23 @@ def yes_or_no(value):
 
 class AuthorsModel(QAbstractTableModel):
     NAME = 0
-    VOTE_REPLIES = 1
-    UPVOTE = 2
-    TOTAL_FIELDS = 3
-    def __init__(self, config, is_backup_authors, parent=None):
+    PRIORITY = 1
+    VOTE_REPLIES = 2
+    UPVOTE = 3
+    TOTAL_FIELDS = 4
+    def __init__(self, config, parent=None):
         super(AuthorsModel, self).__init__(parent)
         self.config = config
-        self.is_backup_authors = is_backup_authors
-
-        authors = config.backup_authors if is_backup_authors else config.authors
-        self.authors = list(authors)
+        self.authors = list(config.authors)
 
         self.headers = [
             {
                 Qt.DisplayRole: 'Name',
                 Qt.ToolTipRole: 'Author name',
+            },
+            {
+                Qt.DisplayRole: 'Priority',
+                Qt.ToolTipRole: 'The importance of voting for this author',
             },
             {
                 Qt.DisplayRole: 'Vote Replies?',
@@ -72,10 +74,7 @@ class AuthorsModel(QAbstractTableModel):
 
     def save(self):
         """Update config and save."""
-        if self.is_backup_authors:
-            self.config.set_backup_authors(self.authors)
-        else:
-            self.config.set_authors(self.authors)
+        self.config.set_authors(self.authors)
 
     def columnCount(self, parent=QModelIndex()):
         return self.TOTAL_FIELDS
@@ -105,6 +104,8 @@ class AuthorsModel(QAbstractTableModel):
         data = None
         if col == self.NAME:
             data = author.name
+        elif col == self.PRIORITY:
+            data = author.priority.value
         elif col == self.VOTE_REPLIES:
             data = author.vote_replies
             if role == Qt.CheckStateRole:
@@ -127,16 +128,42 @@ class AuthorsModel(QAbstractTableModel):
 
         if col == self.NAME:
             author.name = value
-            return True
+        elif col == self.PRIORITY:
+            author.priority = Priority(value)
         elif col == self.VOTE_REPLIES:
             author.vote_replies = value
-            return True
         elif col == self.UPVOTE:
             val = 100.0 if value else -100.0
             author.weight = val
-            return True
+        else:
+            return False
 
-        return False
+        self.dataChanged.emit(index, index)
+        return True
+
+
+class AuthorDelegate(QStyledItemDelegate):
+    """Delegate for Author widgets.
+
+    Allows a combo box to be used for author priorities.
+    """
+    def __init__(self, parent=None):
+        super(AuthorDelegate, self).__init__(parent)
+        self.priority_levels = [i.value for i in Priority]
+
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QComboBox):
+            priority_level = index.data()
+            editor.setCurrentIndex(self.priority_levels.index(priority_level))
+            return
+        return super(AuthorDelegate, self).setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QComboBox):
+            priority_level = self.priority_levels[editor.currentIndex()]
+            model.setData(index, priority_level)
+            return
+        return super(AuthorDelegate, self).setModelData(editor, model, index)
 
 class AuthorEditor(QWidget):
     """Editor for authors."""
@@ -145,19 +172,24 @@ class AuthorEditor(QWidget):
 
         self.mapper = QDataWidgetMapper()
         self.mapper.setModel(parent.proxy_model)
+        self.mapper.setItemDelegate(AuthorDelegate(self))
         self.mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
 
         self.name_edit = QLineEdit()
+        self.priority_combo = QComboBox()
+        self.priority_combo.setModel(QStringListModel([i.value for i in Priority]))
         self.vote_replies_box = QCheckBox()
         self.upvote_box = QCheckBox()
 
         model = parent.model
         self.mapper.addMapping(self.name_edit, model.NAME)
+        self.mapper.addMapping(self.priority_combo, model.PRIORITY)
         self.mapper.addMapping(self.vote_replies_box, model.VOTE_REPLIES)
         self.mapper.addMapping(self.upvote_box, model.UPVOTE)
 
         form = QFormLayout()
         form.addRow('Name:', self.name_edit)
+        form.addRow('Priority:', self.priority_combo)
         form.addRow('Vote for replies?', self.vote_replies_box)
         form.addRow('Upvote?', self.upvote_box)
 
@@ -165,16 +197,16 @@ class AuthorEditor(QWidget):
 
 class AuthorsWidget(QWidget):
     """Displays and allows editing of authors."""
-    def __init__(self, config, is_backup_authors=False, parent=None):
+    def __init__(self, config, parent=None):
         super(AuthorsWidget, self).__init__(parent)
         self.config = config
-        self.is_backup_authors = is_backup_authors
 
         # Authors model and view.
 
-        self.model = AuthorsModel(self.config, self.is_backup_authors)
-        self.proxy_model = QSortFilterProxyModel()
+        self.model = AuthorsModel(self.config)
+        self.proxy_model = QSortFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.model)
+        self.proxy_model.setDynamicSortFilter(True)
         self.view = QTableView()
 
         self.view.setModel(self.proxy_model)

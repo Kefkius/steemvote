@@ -26,9 +26,10 @@ class SettingsModel(QAbstractTableModel):
     """Model for settings."""
     MIN_POST_AGE = 0
     MAX_POST_AGE = 1
-    MIN_VOTING_POWER = 2
-    MAX_VOTING_POWER = 3
-    TOTAL_FIELDS = 4
+    PRIORITY_HIGH = 2
+    PRIORITY_NORMAL = 3
+    PRIORITY_LOW = 4
+    TOTAL_FIELDS = 5
     def __init__(self, config, parent=None):
         super(SettingsModel, self).__init__(parent)
         self.config = config
@@ -52,10 +53,12 @@ class SettingsModel(QAbstractTableModel):
             data = self.config.get_seconds('min_post_age')
         elif c == self.MAX_POST_AGE:
             data = self.config.get_seconds('max_post_age')
-        elif c == self.MIN_VOTING_POWER:
-            data = self.config.get_decimal('min_voting_power') * 100.0
-        elif c == self.MAX_VOTING_POWER:
-            data = self.config.get_decimal('max_voting_power') * 100.0
+        elif c == self.PRIORITY_HIGH:
+            data = self.config.get_decimal('priority_high') * 100.0
+        elif c == self.PRIORITY_NORMAL:
+            data = self.config.get_decimal('priority_normal') * 100.0
+        elif c == self.PRIORITY_LOW:
+            data = self.config.get_decimal('priority_low') * 100.0
 
         return data
 
@@ -70,12 +73,15 @@ class SettingsModel(QAbstractTableModel):
             self.config.set('min_post_age', value)
         elif c == self.MAX_POST_AGE:
             self.config.set('max_post_age', value)
-        elif c == self.MIN_VOTING_POWER:
+        elif c == self.PRIORITY_HIGH:
             value = str(round(value, 4)) + '%'
-            self.config.set('min_voting_power', value)
-        elif c == self.MAX_VOTING_POWER:
+            self.config.set('priority_high', value)
+        elif c == self.PRIORITY_NORMAL:
             value = str(round(value, 4)) + '%'
-            self.config.set('max_voting_power', value)
+            self.config.set('priority_normal', value)
+        elif c == self.PRIORITY_LOW:
+            value = str(round(value, 4)) + '%'
+            self.config.set('priority_low', value)
         else:
             return False
 
@@ -90,27 +96,27 @@ class SettingsWidget(QWidget):
 
         self.min_post_age = MinutesWidget()
         self.max_post_age = MinutesWidget()
+        for widget in [self.min_post_age, self.max_post_age]:
+            widget.valueChanged.connect(lambda new_value, widget=widget: self.adjust_post_age_values(widget, new_value))
 
-        self.min_voting_power = QDoubleSpinBox()
-        self.max_voting_power = QDoubleSpinBox()
-        for widget in [self.min_voting_power, self.max_voting_power]:
+        self.priority_high = QDoubleSpinBox()
+        self.priority_normal = QDoubleSpinBox()
+        self.priority_low = QDoubleSpinBox()
+
+        for widget in [self.priority_high, self.priority_normal, self.priority_low]:
             widget.setRange(1.0, 100.0)
             widget.setDecimals(4)
             widget.setSingleStep(0.1)
             widget.setSuffix('%')
-
-        def check_max_voting_power(new_value):
-            min_power = self.min_voting_power.value()
-            if new_value < min_power:
-                self.max_voting_power.setValue(min_power)
-        self.max_voting_power.valueChanged.connect(check_max_voting_power)
+            widget.valueChanged.connect(lambda new_value, widget=widget: self.adjust_priority_values(widget, new_value))
 
         self.mapper = QDataWidgetMapper()
         self.mapper.setModel(self.model)
         self.mapper.addMapping(self.min_post_age, self.model.MIN_POST_AGE, 'seconds')
         self.mapper.addMapping(self.max_post_age, self.model.MAX_POST_AGE, 'seconds')
-        self.mapper.addMapping(self.min_voting_power, self.model.MIN_VOTING_POWER)
-        self.mapper.addMapping(self.max_voting_power, self.model.MAX_VOTING_POWER)
+        self.mapper.addMapping(self.priority_high, self.model.PRIORITY_HIGH)
+        self.mapper.addMapping(self.priority_normal, self.model.PRIORITY_NORMAL)
+        self.mapper.addMapping(self.priority_low, self.model.PRIORITY_LOW)
 
         self.save_settings_button = QPushButton('Save Settings')
         self.save_settings_button.clicked.connect(self.save_settings)
@@ -118,8 +124,9 @@ class SettingsWidget(QWidget):
         form = QFormLayout()
         form.addRow('Minimum post age:', self.min_post_age)
         form.addRow('Maximum post age:', self.max_post_age)
-        form.addRow('Minimum voting power:', self.min_voting_power)
-        form.addRow('Maximum voting power:', self.max_voting_power)
+        form.addRow('Minimum voting power (high priority):', self.priority_high)
+        form.addRow('Minimum voting power (normal priority):', self.priority_normal)
+        form.addRow('Minimum voting power (low priority):', self.priority_low)
         form.addRow(floated_buttons([self.save_settings_button]))
 
         self.setLayout(form)
@@ -128,7 +135,32 @@ class SettingsWidget(QWidget):
 
     def save_settings(self):
         """Save config settings."""
-        if self.config.get_decimal('max_voting_power') < self.config.get_decimal('min_voting_power'):
-            return QMessageBox.critical(self, 'Invalid Setting', 'Max voting power must not be less than min voting power')
         self.model.save()
         self.settingsChanged.emit()
+
+    def adjust_post_age_values(self, widget, new_value):
+        """Adjust the other post age setting when widget is set to a new value."""
+        # Automatically update max post age.
+        if widget == self.min_post_age and new_value > self.max_post_age.value():
+            self.max_post_age.setValue(new_value)
+        # Automatically update min post age.
+        elif widget == self.max_post_age and new_value < self.min_post_age.value():
+            self.min_post_age.setValue(new_value)
+
+    def adjust_priority_values(self, widget, new_value):
+        """Adjust the other priority settings when widget is set to new_value."""
+        high, normal, low = self.priority_high, self.priority_normal, self.priority_low
+
+        if widget == high:
+            for w in [normal, low]:
+                if w.value() < new_value:
+                    w.setValue(new_value)
+        if widget == normal:
+            if low.value() < new_value:
+                low.setValue(new_value)
+            if high.value() > new_value:
+                high.setValue(new_value)
+        if widget == low:
+            for w in [high, normal]:
+                if w.value() > new_value:
+                    w.setValue(new_value)
