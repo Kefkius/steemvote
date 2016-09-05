@@ -19,10 +19,9 @@ You can run steemvoter like so: `steemvoter -c path/to/config.json`.
 
 A configuration file specifies the authors to vote on, the key to sign votes with, etc.
 Your configuration file can be supplied with a command-line argument (`steemvoter -c path/to/config.json`).
-If not supplied, steemvoter will look for the file `steemvote-config.json` in the current directory.
+If not supplied, steemvoter will look for the file `steemvote-config.json` or `steemvote-config.yaml` in the current directory.
 
-An example config file, `example-steemvote-config.json`, is supplied. *NOTE* that YAML is also valid
-for configuration files, in addition to JSON.
+Example configuration files are located in the [example-configs](./example-configs) directory.
 
 The following config values are required:
 
@@ -43,9 +42,19 @@ Optional values for each author:
 
 *NOTE* that if you just want to add an author and use the default values, a string can be used instead of an object.
 
-Sometimes, you don't have enough authors to consume the amount of voting power you want. In that case, you
-can use the config value `backup_authors`. `backup_authors` is a list of objects or strings, just as `authors` is.
-These authors will be voted for if steemvote detects that it is not using as much voting power as you want it to.
+### Delegates
+
+Delegates are other Steem accounts. Steemvoter will watch for votes that your delegates cast,
+and will vote for the comments that they vote on.
+
+The `delegates` config list is similar to the `authors` list. However, delegates do not have a `vote_replies` value.
+
+Optional values for each delegate:
+
+- `priority`: The priority (explained below) that comments this delegate votes for have (Default: `normal`).
+- `weight`: The weight to vote with. `100.0` represents an upvote, and `-100.0` represents a downvote (Default: `100.0`).
+
+Also like authors, you can use a string instead of an object and the default optional values will be filled in for you.
 
 ### Voting Rules
 

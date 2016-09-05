@@ -1,0 +1,36 @@
+# Effects:
+#
+# When voting power is >= 90%,
+# comments by klye, kefkius, trogdor, and dan will be voted for.
+#
+# When voting power is >= 80%,
+# comments by klye, kefkius, and trogdor will be voted for.
+#
+# When voting power is >= 50%,
+# comments by klye will be voted for.
+#
+# When voting power is < 50%, no comments will be voted for.
+
+authors:
+# High priority authors.
+- {name: klye, priority: high}
+# Normal priority authors.
+- {name: kefkius, priority: normal}
+- {name: trogdor, priority: normal}
+# Low priority authors.
+- {name: dan, priority: low}
+
+# Comments will be voted on once they are 10 minutes old.
+min_post_age: 10 minutes
+# Comments will be tracked until they are 20 minutes old.
+max_post_age: 20 minutes
+
+# The high priority authors will be voted for if our available
+# voting power is >= 50%.
+priority_low: 50%
+# The normal priority authors will be voted for if our available
+# voting power is >= 80%.
+priority_normal: 80%
+# The low priority authors will be voted for if our available
+# voting power is >= 90%.
+priority_normal: 90%

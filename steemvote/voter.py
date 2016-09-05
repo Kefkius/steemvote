@@ -23,6 +23,10 @@ class Voter(object):
     This class is used by first calling connect_to_steem(),
     then calling vote_for_comments() whenever the database
     should be checked for eligible comments.
+
+    Voting logic is more strict than tracking logic,
+    which is just for deciding whether to track a comment.
+    Unlike tracking, there is only one should_vote() method.
     """
     def __init__(self, config):
         self.logger = logging.getLogger(__name__)
@@ -196,7 +200,11 @@ class Voter(object):
         return ShouldTrack(True, '')
 
     def _should_vote_author(self, comment):
-        """Get whether comment should be voted on, based on its author."""
+        """Get whether comment should be voted on, based on its author.
+
+        Returns:
+            A 2-tuple of (should_vote, reason).
+        """
         with self.config_lock:
             # Check if the priority is high enough given our voting power.
             author = self.config.get_author(comment.author)
@@ -205,11 +213,15 @@ class Voter(object):
         return (True, '')
 
     def _should_vote_delegates(self, comment):
-        """Get whether comment should be voted on, based on delegate votes."""
+        """Get whether comment should be voted on, based on delegate votes.
+
+        Returns:
+            A 2-tuple of (should_vote, reason).
+        """
         with self.config_lock:
             delegates = self._get_voted_delegates(comment)
             if not delegates:
-                return (False, 'delegate votes are no longer present')
+                return (False, 'no delegates have voted for comment')
             if not any(self.is_prioritized(priority) for priority in [i.priority for i in delegates]):
                 return (False, 'no delegates with a high enough priority')
 
@@ -218,7 +230,7 @@ class Voter(object):
     def should_vote(self, comment):
         """Get whether comment should be voted on.
 
-        Calls _should_voter_author() and should_vote_delegate().
+        Calls _should_vote_author() and should_vote_delegate().
         The result is False if both are False.
 
         Returns:
@@ -233,6 +245,8 @@ class Voter(object):
             # Check if the comment is too young.
             if time.time() - comment.timestamp < self.min_post_age:
                 return ShouldVote(False, True, 'comment is too young')
+            # Check if the comment should be voted on based on its author
+            # or any delegates that have voted for it.
             should_vote_author = self._should_vote_author(comment)
             should_vote_delegates = self._should_vote_delegates(comment)
             if not should_vote_author[0] and not should_vote_delegates[0]:

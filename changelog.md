@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.3.0
+
+* There is now a graphical interface. The GUI is used unless
+    the option `-t` or `--terminal` is passed to steemvoter.
+    Steemvoter can still be used without installing PyQt4 by passing this option.
+* The database uses a new, versioned scheme.
+    Steemvoter will destroy old databases that do not use the new scheme.
+* Delegates can now be specified with the `delegates` config key.
+    Steemvoter will track and vote for comments that your delegates vote for
+    as if they were written by your specified authors.
+* Backup authors have been refactored into a per-author priority system.
+    Steemvoter will convert your list of backup authors into low-priority
+    authors and add them to your main authors list.
+* The config keys `priority_high`, `priority_normal`, and `priority_low` are
+    used to specify the remaining voting power you must have to vote for
+    comments of each priority.
+* Steemvoter will replace the config key `max_voting_power` with `priority_low`.
+* Steemvoter will replace the config key `min_voting_power` with `priority_high`.
+
 ## v0.2.0
 
 * Voting power is tracked. The config key `"min_voting_power"` is used to specify
