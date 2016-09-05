@@ -31,7 +31,7 @@ class Voter(object):
         # Last time that stats were updated via RPC.
         self.last_update = 0
 
-        self.config_lock = threading.Lock()
+        self.config_lock = threading.RLock()
         self.voting_lock = threading.Lock()
 
         # Load settings from config.
@@ -121,6 +121,29 @@ class Voter(object):
         """Get whether a comment with the given priority should be voted for."""
         return self.current_voting_power >= self.priority_voting_powers[priority]
 
+    def get_voting_weight(self, comment):
+        """Get the weight that comment should be voted for with."""
+        with self.config_lock:
+            author = self.config.get_author(comment.author)
+            if author:
+                return author.weight
+            delegates = self._get_voted_delegates(comment)
+            if delegates:
+                return max([i.weight for i in delegates])
+
+        raise Exception('Comment should not be voted for')
+
+    def _get_voted_delegates(self, comment):
+        """Get the delegates that have voted on comment."""
+        with self.config_lock:
+            my_delegates = {i.name: i for i in self.config.delegates}
+            voted_delegates = comment.get_have_voted(my_delegates.keys())
+
+        result = []
+        for delegate_name in voted_delegates:
+            result.append(my_delegates[delegate_name])
+        return result
+
     def should_track(self, comment):
         """Get whether comment should be tracked.
 
@@ -135,6 +158,20 @@ class Voter(object):
         if not comment.allow_curation_rewards or not comment.allow_votes:
             return (False, 'comment does not allow curation')
         with self.config_lock:
+            # Check if the post is in a blacklisted category.
+            if comment.category in self.blacklisted_categories:
+                return (False, 'comment is in a blacklisted category')
+            # Check if the post is too old.
+            if time.time() - comment.timestamp > self.max_post_age:
+                return (False, 'comment is too old')
+        return (True, '')
+
+    def should_track_for_author(self, comment):
+        """Get whether comment should be tracked, based on its author."""
+        should_track = self.should_track(comment)
+        if not should_track[0]:
+            return should_track
+        with self.config_lock:
             # Check if the author isn't known to steemvote.
             author = self.config.get_author(comment.author)
             if not author:
@@ -142,12 +179,37 @@ class Voter(object):
             # Check if we omit replies by the author.
             if comment.is_reply() and not author.vote_replies:
                 return (False, 'comment is a reply')
-            # Check if the post is in a blacklisted category.
-            if comment.category in self.blacklisted_categories:
-                return (False, 'comment is in a blacklisted category')
-            # Check if the post is too old.
-            if time.time() - comment.timestamp > self.max_post_age:
-                return (False, 'comment is too old')
+        return (True, '')
+
+    def should_track_for_delegate(self, comment):
+        """Get whether comment should be tracked, based on delegate votes."""
+        should_track = self.should_track(comment)
+        if not should_track[0]:
+            return should_track
+        with self.config_lock:
+            if not self._get_voted_delegates(comment):
+                return (False, 'no delegates have voted for comment')
+        print('Delegate voted, should track %s' % comment.identifier)
+        return (True, '')
+
+    def _should_vote_author(self, comment):
+        """Get whether comment should be voted on, based on its author."""
+        with self.config_lock:
+            # Check if the priority is high enough given our voting power.
+            author = self.config.get_author(comment.author)
+            if not author or not self.is_prioritized(author.priority):
+                return (False, 'author does not have a high enough priority')
+        return (True, '')
+
+    def _should_vote_delegates(self, comment):
+        """Get whether comment should be voted on, based on delegate votes."""
+        with self.config_lock:
+            delegates = self._get_voted_delegates(comment)
+            if not delegates:
+                return (False, 'delegate votes are no longer present')
+            if not any(self.is_prioritized(priority) for priority in [i.priority for i in delegates]):
+                return (False, 'no delegates with a high enough priority')
+
         return (True, '')
 
     def should_vote(self, comment):
@@ -167,10 +229,10 @@ class Voter(object):
             # Check if the comment is too young.
             if time.time() - comment.timestamp < self.min_post_age:
                 return (False, 'comment is too young')
-            # Check if the priority is high enough given our voting power.
-            author = self.config.get_author(comment.author)
-            if not self.is_prioritized(author.priority):
-                return (False, 'author does not have a high enough priority')
+            should_vote_author = self._should_vote_author(comment)
+            should_vote_delegates = self._should_vote_delegates(comment)
+            if not should_vote_author[0] and not should_vote_delegates[0]:
+                return should_vote_author
         return (True, '')
 
     def _vote(self, identifier, weight):
@@ -211,8 +273,8 @@ class Voter(object):
                         self.logger.debug('Stop tracking %s because %s' % (comment.identifier, reason))
                 # Vote for the comment.
                 else:
-                    author = self.config.get_author(comment.author)
-                    self._vote(comment.identifier, author.weight)
+                    weight = self.get_voting_weight(comment)
+                    self._vote(comment.identifier, weight)
                     voted_comments.append(comment)
 
             self.db.update_voted_comments(voted_comments)

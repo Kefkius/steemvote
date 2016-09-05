@@ -83,7 +83,17 @@ class Monitor(threading.Thread):
         """Handler for comment operations."""
         try:
             comment = Comment(self.steem, d)
-            if self.voter.should_track(comment)[0]:
+            if self.voter.should_track_for_author(comment)[0]:
+                self.db.add_comment(comment)
+        except ValueError as e:
+            self.logger.debug('Invalid comment. Skipping')
+
+    def on_vote(self, d):
+        if not self.config.get_delegate(d['voter']):
+            return
+        try:
+            comment = Comment(self.steem, d)
+            if self.voter.should_track_for_delegate(comment)[0]:
                 self.db.add_comment(comment)
         except ValueError as e:
             self.logger.debug('Invalid comment. Skipping')

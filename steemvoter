@@ -66,6 +66,27 @@ def print_config(voter):
         for names in v:
             print('\t{}'.format(str(names)[1:-1]))
 
+    # Output delegate configuration.
+    # Split delegate lists into lines of 5 items each.
+
+    delegates_config = OrderedDict()
+    delegates = sorted(config.delegates, key = lambda i: i.name)
+    for priority_level in Priority:
+        names = [i.name for i in [delegate for delegate in delegates if delegate.priority == priority_level]]
+        lists = []
+        for i in range(0, len(names), 5):
+            lists.append(names[i:i+5])
+
+        delegates_config['%s priority' % priority_level.value.capitalize()] = lists
+
+    print('')
+    print('Delegates:')
+    for k, v in delegates_config.items():
+        if not len(v):
+            continue
+        print(' - %s:' % k)
+        for names in v:
+            print('\t{}'.format(str(names)[1:-1]))
 
     print(footer)
 

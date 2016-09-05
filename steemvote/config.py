@@ -5,7 +5,7 @@ import os
 import yaml
 import humanfriendly
 
-from steemvote.models import Author, Priority
+from steemvote.models import Author, Delegate, Priority
 
 default_values = (
     # Default minimum age of posts to vote on.
@@ -181,6 +181,7 @@ class Config(object):
 
     def options_loaded(self):
         self.load_authors()
+        self.load_delegates()
         self.update_old_keys()
 
     def load_authors(self):
@@ -188,15 +189,33 @@ class Config(object):
         authors = self.get('authors', [])
         self.authors = [Author.from_config(i) for i in authors]
 
+    def load_delegates(self):
+        """Load delegates from config."""
+        delegates = self.get('delegates', [])
+        self.delegates = [Delegate.from_config(i) for i in delegates]
+
     def get_author(self, name):
         """Get an author by name."""
         for author in self.authors:
             if author.name == name:
                 return author
 
+    def get_delegate(self, name):
+        """Get a delegate by name."""
+        for delegate in self.delegates:
+            if delegate.name == name:
+                return delegate
+
     def set_authors(self, authors):
         """Set authors and save."""
         if not all(isinstance(i, Author) for i in authors):
             raise TypeError('A list of authors is required')
         self.authors = authors
+        self.save()
+
+    def set_delegates(self, delegates):
+        """Set delegates and save."""
+        if not all(isinstance(i, Delegate) for i in delegates):
+            raise TypeError('A list of delegates is required')
+        self.delegates = delegates
         self.save()
