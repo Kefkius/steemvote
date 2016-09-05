@@ -28,7 +28,7 @@ class SteemvoteRPC(SteemNodeRPC):
 class SteemvoteSteem(Steem):
     """Subclass of Steem with a work-around for RPC threading problems."""
     def _connect(self, *args, **kwargs):
-        super(SteemvoteSteem, self).__init__(*args, **kwargs)
+        super(SteemvoteSteem, self)._connect(*args, **kwargs)
         self.rpc = SteemvoteRPC(self.rpc.url, user=self.rpc.user,
                 password=self.rpc.password, num_retries=self.rpc.num_retries)
 
