@@ -7,17 +7,19 @@ import humanfriendly
 
 from steemvote.models import Author, Priority
 
-# Default minimum age of posts to vote on.
-DEFAULT_MIN_POST_AGE = 60 # 1 minute.
-# Default maximum age of posts to vote on.
-DEFAULT_MAX_POST_AGE = 2 * 24 * 60 * 60 # 2 days.
+default_values = (
+    # Default minimum age of posts to vote on.
+    ('min_post_age', 60), # 1 minute.
+    # Default maximum age of posts to vote on.
+    ('max_post_age', 2 * 24 * 60 * 60), # 2 days.
 
-# Default high priority voting power.
-DEFAULT_PRIORITY_HIGH = 0.8 # 80%
-# Default normal priority voting power.
-DEFAULT_PRIORITY_NORMAL = 0.9 # 90%
-# Default low priority voting power.
-DEFAULT_PRIORITY_LOW = 0.95 # 95%
+    # Default high priority voting power.
+    ('priority_high', 0.8), # 80%
+    # Default normal priority voting power.
+    ('priority_normal', 0.9), # 90%
+    # Default low priority voting power.
+    ('priority_low', 0.95), # 95%
+)
 
 def get_decimal(data):
     """Parse data into a decimal."""
@@ -42,14 +44,7 @@ class Config(object):
         self.filepath = ''
         self.config_format = 'json'
         self.options = {}
-        self.defaults = {
-            'min_post_age': DEFAULT_MIN_POST_AGE,
-            'max_post_age': DEFAULT_MAX_POST_AGE,
-
-            'priority_high': DEFAULT_PRIORITY_HIGH,
-            'priority_normal': DEFAULT_PRIORITY_NORMAL,
-            'priority_low': DEFAULT_PRIORITY_LOW,
-        }
+        self.defaults = {k: v for (k, v) in default_values}
 
     def get(self, key, value=None):
         """Get a value.

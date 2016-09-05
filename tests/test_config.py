@@ -1,6 +1,6 @@
 import pytest
 
-from steemvote.config import Config, get_decimal
+from steemvote.config import Config, default_values, get_decimal
 from steemvote.models import Priority
 
 class TestDecimal(object):
@@ -17,6 +17,12 @@ class TestDecimal(object):
             ('100%', 1.0),
         ]:
             assert expected == get_decimal(data)
+
+def test_defaults():
+    """Test that default values are used."""
+    c = Config(no_saving=True)
+    for k, v in default_values:
+        assert c.get(k) == v
 
 @pytest.fixture
 def old_keys_dict():
