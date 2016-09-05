@@ -17,12 +17,12 @@ class SteemvoteRPC(SteemNodeRPC):
 
     def get_block(self, num):
         with self.rpc_lock:
-            result = super(SteemvoteRPC, self).get_block(num)
+            result = super(SteemvoteRPC, self).__getattr__('get_block')(num)
         return result
 
     def get_dynamic_global_properties(self):
         with self.rpc_lock:
-            result = super(SteemvoteRPC, self).get_dynamic_global_properties()
+            result = super(SteemvoteRPC, self).__getattr__('get_dynamic_global_properties')()
         return result
 
 class SteemvoteSteem(Steem):
