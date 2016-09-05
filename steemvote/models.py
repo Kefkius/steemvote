@@ -18,6 +18,13 @@ class Priority(enum.Enum):
             if level is priority:
                 return i
 
+    @classmethod
+    def from_index(cls, index):
+        """Get the priority at index."""
+        for i, level in enumerate(cls.__members__.values()):
+            if i == index:
+                return level
+
 class User(object):
     """Base class for authors and delegates."""
     @classmethod

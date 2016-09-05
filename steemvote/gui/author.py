@@ -109,7 +109,7 @@ class AuthorsModel(QAbstractTableModel):
             data = author.name
         elif col == self.PRIORITY:
             data = author.priority.value
-            if role == self.SortRole:
+            if role in [Qt.EditRole, self.SortRole]:
                 data = Priority.get_index(author.priority)
         elif col == self.VOTE_REPLIES:
             data = author.vote_replies
@@ -134,7 +134,7 @@ class AuthorsModel(QAbstractTableModel):
         if col == self.NAME:
             author.name = value
         elif col == self.PRIORITY:
-            author.priority = Priority(value)
+            author.priority = Priority.from_index(value)
         elif col == self.VOTE_REPLIES:
             author.vote_replies = value
         elif col == self.UPVOTE:
@@ -146,30 +146,6 @@ class AuthorsModel(QAbstractTableModel):
         self.dataChanged.emit(index, index)
         return True
 
-
-class AuthorDelegate(QStyledItemDelegate):
-    """Delegate for Author widgets.
-
-    Allows a combo box to be used for author priorities.
-    """
-    def __init__(self, parent=None):
-        super(AuthorDelegate, self).__init__(parent)
-        self.priority_levels = [i.value for i in Priority]
-
-    def setEditorData(self, editor, index):
-        if isinstance(editor, QComboBox):
-            priority_level = index.data()
-            editor.setCurrentIndex(self.priority_levels.index(priority_level))
-            return
-        return super(AuthorDelegate, self).setEditorData(editor, index)
-
-    def setModelData(self, editor, model, index):
-        if isinstance(editor, QComboBox):
-            priority_level = self.priority_levels[editor.currentIndex()]
-            model.setData(index, priority_level)
-            return
-        return super(AuthorDelegate, self).setModelData(editor, model, index)
-
 class AuthorEditor(QWidget):
     """Editor for authors."""
     def __init__(self, parent):
@@ -177,7 +153,6 @@ class AuthorEditor(QWidget):
 
         self.mapper = QDataWidgetMapper()
         self.mapper.setModel(parent.proxy_model)
-        self.mapper.setItemDelegate(AuthorDelegate(self))
         self.mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
 
         self.name_edit = QLineEdit()
@@ -188,7 +163,7 @@ class AuthorEditor(QWidget):
 
         model = parent.model
         self.mapper.addMapping(self.name_edit, model.NAME)
-        self.mapper.addMapping(self.priority_combo, model.PRIORITY)
+        self.mapper.addMapping(self.priority_combo, model.PRIORITY, 'currentIndex')
         self.mapper.addMapping(self.vote_replies_box, model.VOTE_REPLIES)
         self.mapper.addMapping(self.upvote_box, model.UPVOTE)
 
