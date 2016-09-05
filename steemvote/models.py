@@ -11,6 +11,12 @@ class Priority(enum.Enum):
     low = 'low'
     normal = 'normal'
     high = 'high'
+    @classmethod
+    def get_index(cls, priority):
+        """Get the numeric index of priority."""
+        for i, level in enumerate(cls.__members__.values()):
+            if level is priority:
+                return i
 
 class Author(object):
     """An author."""

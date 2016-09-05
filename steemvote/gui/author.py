@@ -13,6 +13,9 @@ class AuthorsModel(QAbstractTableModel):
     VOTE_REPLIES = 2
     UPVOTE = 3
     TOTAL_FIELDS = 4
+
+    # Role for sorting
+    SortRole = Qt.UserRole + 1
     def __init__(self, config, parent=None):
         super(AuthorsModel, self).__init__(parent)
         self.config = config
@@ -92,7 +95,7 @@ class AuthorsModel(QAbstractTableModel):
     def data(self, index, role = Qt.DisplayRole):
         if not index.isValid() or index.row() >= len(self.authors):
             return None
-        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.UserRole, Qt.CheckStateRole]:
+        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.UserRole, Qt.CheckStateRole, self.SortRole]:
             return None
 
         col = index.column()
@@ -106,6 +109,8 @@ class AuthorsModel(QAbstractTableModel):
             data = author.name
         elif col == self.PRIORITY:
             data = author.priority.value
+            if role == self.SortRole:
+                data = Priority.get_index(author.priority)
         elif col == self.VOTE_REPLIES:
             data = author.vote_replies
             if role == Qt.CheckStateRole:
@@ -206,6 +211,7 @@ class AuthorsWidget(QWidget):
         self.model = AuthorsModel(self.config)
         self.proxy_model = QSortFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.model)
+        self.proxy_model.setSortRole(self.model.SortRole)
         self.proxy_model.setDynamicSortFilter(True)
         self.view = QTableView()
 
