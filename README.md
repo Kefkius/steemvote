@@ -52,7 +52,7 @@ These authors will be voted for if steemvote detects that it is not using as muc
 These voting rules are optional, and specify how to vote.
 
 The value `blacklist_categories` can be specified with a list of categories. Comments in those categories will
-never be voted for.
+never be voted for (Default: `[spam]`).
 
 The following values can be specified as seconds or as human-readable strings (e.g. `"max_post_age": "2 days"`):
 

@@ -38,6 +38,7 @@ def print_config(voter):
         value = voter.priority_voting_powers[priority_level]
         voting_config[key] = '{voting_power:.{decimals}%}'.format(voting_power=value,
                                                 decimals=len(str(value)) - 3)
+    voting_config['Blacklisted categories'] = str(voter.blacklisted_categories)
 
     longest_key_length = max([len(i) for i in voting_config.keys()])
     for k, v in voting_config.items():

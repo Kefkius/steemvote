@@ -38,6 +38,7 @@ class Voter(object):
 
         config.require('voter_account_name')
         config.require('vote_key')
+        config.require_class('blacklist_categories', list)
 
         self.name = config.get('voter_account_name')
         self.wif = config.get('vote_key')
@@ -67,7 +68,7 @@ class Voter(object):
                 raise ValueError('Priority voting powers must be: low >= normal >= high')
 
             # Categories to ignore posts in.
-            self.blacklisted_categories = config.get('blacklist_categories', [])
+            self.blacklisted_categories = config.get('blacklist_categories')
 
             self.rpc_node = config.get('rpc_node')
             self.rpc_user = config.get('rpc_user')

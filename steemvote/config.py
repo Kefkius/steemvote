@@ -19,6 +19,9 @@ default_values = (
     ('priority_normal', 0.9), # 90%
     # Default low priority voting power.
     ('priority_low', 0.95), # 95%
+
+    # Default categories to ignore.
+    ('blacklist_categories', ['spam']),
 )
 
 def get_decimal(data):
@@ -79,6 +82,12 @@ class Config(object):
         """Raise if a key is not present."""
         if not self.get(key):
             raise ConfigError('Configuration value for "%s" is required' % key)
+
+    def require_class(self, key, cls):
+        """Raise if the value of key is not an instance of cls."""
+        value = self.get(key)
+        if not isinstance(value, cls):
+            raise ConfigError('Configuration value for "%s" must be a %s, not %s' % (key, cls.__name__, type(value).__name__))
 
     def update_old_keys(self):
         """Update old keys for backwards compatibility."""
