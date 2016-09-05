@@ -51,7 +51,7 @@ class CommentsModel(QAbstractTableModel):
     def data(self, index, role = Qt.DisplayRole):
         if not index.isValid() or index.row() >= len(self.comments):
             return None
-        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole]:
+        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.UserRole]:
             return None
 
         comment = self.comments[index.row()]
@@ -62,6 +62,9 @@ class CommentsModel(QAbstractTableModel):
             data = comment.author
         elif col == self.URL:
             data = comment.get_url()
+            # UserRole is for the comment identifier.
+            if role == Qt.UserRole:
+                data = comment.identifier
         elif col == self.TIMESTAMP:
             data = comment.timestamp
             if role == Qt.DisplayRole:
@@ -112,7 +115,11 @@ class CommentsWidget(QWidget):
         def open_in_browser(index):
             url = self.proxy_model.data(self.proxy_model.index(index.row(), self.model.URL))
             webbrowser.open(url)
+        def skip(index):
+            identifier = self.proxy_model.data(self.proxy_model.index(index.row(), self.model.URL), role=Qt.UserRole)
+            self.db.remove_tracked_comments([identifier])
 
         menu.addAction('Open in browser', lambda: open_in_browser(self.view.currentIndex()))
+        menu.addAction('Stop tracking', lambda: skip(self.view.currentIndex()))
 
         menu.exec_(self.view.viewport().mapToGlobal(position))
