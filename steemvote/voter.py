@@ -4,11 +4,11 @@ import threading
 import time
 
 import grapheneapi
-from piston.steem import Steem
 
 from steemvote.config import ConfigError
 from steemvote.db import DB
 from steemvote.models import Priority
+from steemvote.rpcnode import SteemvoteSteem
 
 STEEMIT_100_PERCENT = 10000
 STEEMIT_VOTE_REGENERATION_SECONDS = 5*60*60*24 # 5 days
@@ -77,7 +77,7 @@ class Voter(object):
         """Connect to a Steem node."""
         self.logger.debug('Connecting to Steem')
         # We use nobroadcast=True so we can handle exceptions better.
-        self.steem = Steem(node=self.rpc_node, rpcuser=self.rpc_user,
+        self.steem = SteemvoteSteem(node=self.rpc_node, rpcuser=self.rpc_user,
             rpcpassword=self.rpc_pass, wif=self.wif, nobroadcast=True,
             apis=['database', 'network_broadcast'])
         self.db.load(self.steem)
