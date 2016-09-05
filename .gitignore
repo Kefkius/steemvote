@@ -6,3 +6,4 @@ steemvote-config.yaml
 Steemvote.egg-info/
 database/
 dist/
+.cache/

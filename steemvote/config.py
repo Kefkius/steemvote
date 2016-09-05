@@ -1,10 +1,11 @@
 import json
+import logging
 import os
 
 import yaml
 import humanfriendly
 
-from steemvote.models import Author
+from steemvote.models import Author, Priority
 
 # Default minimum age of posts to vote on.
 DEFAULT_MIN_POST_AGE = 60 # 1 minute.
@@ -34,7 +35,10 @@ class ConfigError(Exception):
     pass
 
 class Config(object):
-    def __init__(self):
+    def __init__(self, no_saving=False):
+        # True if unit tests are being run.
+        self.no_saving = no_saving
+        self.logger = logging.getLogger(__name__)
         self.filepath = ''
         self.config_format = 'json'
         self.options = {}
@@ -83,11 +87,46 @@ class Config(object):
 
     def update_old_keys(self):
         """Update old keys for backwards compatibility."""
+        updated = False
         # Change "vote_delay" to "min_post_age".
-        if self.get('vote_delay') is not None and self.get('min_post_age') is None:
+        if self.get('vote_delay') is not None and self.get('min_post_age', -1) == -1:
             self.set('min_post_age', self.get('vote_delay'))
+            self.logger.info('Updated old value "vote_delay" to "min_post_age"')
+            del self.options['vote_delay']
+            updated = True
+
+        # 0.2 used "backup authors" - Convert those to low-priority authors.
+        backup_authors = [Author.from_config(i) for i in self.get('backup_authors', [])]
+        if backup_authors:
+            for author in backup_authors:
+                # Add the backup author as a low priority author
+                # if it isn't in the main authors list.
+                if not self.get_author(author.name):
+                    author.priority = Priority.low
+                    self.authors.append(author)
+            self.logger.info('Updated old value "backup_authors" to low-priority authors')
+            del self.options['backup_authors']
+            updated = True
+        # Change "min_voting_power" to "priority_high".
+        if self.get('min_voting_power') is not None and self.get('priority_high', -1) == -1:
+            self.set('priority_high', self.get('min_voting_power'))
+            self.logger.info('Updated old value "min_voting_power" to "priority_high"')
+            del self.options['min_voting_power']
+            updated = True
+        # Change "max_voting_power" to "priority_low".
+        if self.get('max_voting_power') is not None and self.get('priority_low', -1) == -1:
+            self.set('priority_low', self.get('max_voting_power'))
+            self.logger.info('Updated old value "max_voting_power" to "priority_low"')
+            del self.options['max_voting_power']
+            updated = True
+
+        if updated:
+            self.save()
 
     def save(self):
+        # Return if unit tests are being run.
+        if self.no_saving:
+            return
         options = dict(self.options)
         options['authors'] = [i.to_dict() for i in self.authors]
 
@@ -134,9 +173,11 @@ class Config(object):
             options = self._load_yaml(filepath)
         self.options = options
         self.filepath = filepath
+        self.options_loaded()
 
-        self.update_old_keys()
+    def options_loaded(self):
         self.load_authors()
+        self.update_old_keys()
 
     def load_authors(self):
         """Load authors from config."""
