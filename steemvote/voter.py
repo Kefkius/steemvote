@@ -1,3 +1,4 @@
+from collections import namedtuple
 import datetime
 import logging
 import threading
@@ -12,6 +13,9 @@ from steemvote.rpcnode import SteemvoteSteem
 
 STEEMIT_100_PERCENT = 10000
 STEEMIT_VOTE_REGENERATION_SECONDS = 5*60*60*24 # 5 days
+
+ShouldTrack = namedtuple('ShouldTrack', ('track', 'reason',))
+ShouldVote = namedtuple('ShouldVote', ('vote', 'track', 'reason',))
 
 class Voter(object):
     """Voter settings and functionality.
@@ -150,47 +154,46 @@ class Voter(object):
         This is a less-strict form of should_vote().
 
         Returns:
-            A 2-tuple of (should_track, reason). should_track is a
-            bool, and reason contains the reason not to track the comment
-            if should_track is False.
+            A ShouldTrack instance.
         """
         # Check if the comment has curation disabled.
         if not comment.allow_curation_rewards or not comment.allow_votes:
-            return (False, 'comment does not allow curation')
+            return ShouldTrack(False, 'comment does not allow curation')
         with self.config_lock:
             # Check if the post is in a blacklisted category.
             if comment.category in self.blacklisted_categories:
-                return (False, 'comment is in a blacklisted category')
+                return ShouldTrack(False, 'comment is in a blacklisted category')
             # Check if the post is too old.
             if time.time() - comment.timestamp > self.max_post_age:
-                return (False, 'comment is too old')
-        return (True, '')
+                return ShouldTrack(False, 'comment is too old')
+        return ShouldTrack(True, '')
 
     def should_track_for_author(self, comment):
         """Get whether comment should be tracked, based on its author."""
+        # First check against the less-strict should_track() rules.
         should_track = self.should_track(comment)
-        if not should_track[0]:
+        if not should_track.track:
             return should_track
         with self.config_lock:
             # Check if the author isn't known to steemvote.
             author = self.config.get_author(comment.author)
             if not author:
-                return (False, 'author is unknown')
+                return ShouldTrack(False, 'author is unknown')
             # Check if we omit replies by the author.
             if comment.is_reply() and not author.vote_replies:
-                return (False, 'comment is a reply')
-        return (True, '')
+                return ShouldTrack(False, 'comment is a reply')
+        return ShouldTrack(True, '')
 
     def should_track_for_delegate(self, comment):
         """Get whether comment should be tracked, based on delegate votes."""
+        # First check against the less-strict should_track() rules.
         should_track = self.should_track(comment)
-        if not should_track[0]:
+        if not should_track.track:
             return should_track
         with self.config_lock:
             if not self._get_voted_delegates(comment):
-                return (False, 'no delegates have voted for comment')
-        print('Delegate voted, should track %s' % comment.identifier)
-        return (True, '')
+                return ShouldTrack(False, 'no delegates have voted for comment')
+        return ShouldTrack(True, '')
 
     def _should_vote_author(self, comment):
         """Get whether comment should be voted on, based on its author."""
@@ -215,25 +218,26 @@ class Voter(object):
     def should_vote(self, comment):
         """Get whether comment should be voted on.
 
+        Calls _should_voter_author() and should_vote_delegate().
+        The result is False if both are False.
+
         Returns:
-            A 2-tuple of (should_vote, reason). should_vote is a
-            bool, and reason contains the reason not to vote
-            if should_vote is False.
+            A ShouldVote instance.
         """
         # First check against the less-strict should_track() rules.
         should_track = self.should_track(comment)
-        if not should_track[0]:
-            return should_track
+        if not should_track.track:
+            return ShouldVote(False, *should_track)
         # Then check against rules that depend on context.
         with self.config_lock:
             # Check if the comment is too young.
             if time.time() - comment.timestamp < self.min_post_age:
-                return (False, 'comment is too young')
+                return ShouldVote(False, True, 'comment is too young')
             should_vote_author = self._should_vote_author(comment)
             should_vote_delegates = self._should_vote_delegates(comment)
             if not should_vote_author[0] and not should_vote_delegates[0]:
-                return should_vote_author
-        return (True, '')
+                return ShouldVote(False, True, ' and '.join([should_vote_author[1], should_vote_delegates[1]]))
+        return ShouldVote(True, True, '')
 
     def _vote(self, identifier, weight):
         """Create and broadcast a vote for identifier."""
@@ -265,12 +269,12 @@ class Voter(object):
             comments = self.db.get_tracked_comments()
             for comment in comments:
                 # Skip if the comment shouldn't be voted on now.
-                if not self.should_vote(comment)[0]:
+                should_vote = self.should_vote(comment)
+                if not should_vote.vote:
                     # Check whether to stop tracking the comment.
-                    keep_tracking, reason = self.should_track(comment)
-                    if not keep_tracking:
+                    if not should_vote.track:
                         old_identifiers.append(comment.identifier)
-                        self.logger.debug('Stop tracking %s because %s' % (comment.identifier, reason))
+                        self.logger.debug('Stop tracking %s because %s' % (comment.identifier, should_vote.reason))
                 # Vote for the comment.
                 else:
                     weight = self.get_voting_weight(comment)
