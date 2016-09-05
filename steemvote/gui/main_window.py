@@ -10,6 +10,7 @@ from PyQt4.QtCore import *
 from steemvote.monitor import Monitor
 from steemvote.voter import Voter
 from steemvote.gui.author import AuthorsWidget
+from steemvote.gui.delegate import DelegatesWidget
 from steemvote.gui.comment import CommentsWidget
 from steemvote.gui.settings import SettingsWidget
 
@@ -58,6 +59,7 @@ class SteemvoteWindow(QMainWindow):
         self.tabs.addTab(self.create_status_tab(), 'Status')
         self.tabs.addTab(self.create_settings_tab(), 'Settings')
         self.tabs.addTab(self.create_authors_tab(), 'Authors')
+        self.tabs.addTab(self.create_delegates_tab(), 'Delegates')
 
         # Status bar widgets.
         self.voting_power_label = QLabel()
@@ -102,6 +104,10 @@ class SteemvoteWindow(QMainWindow):
     def create_authors_tab(self):
         self.authors_widget = AuthorsWidget(self.config)
         return self.authors_widget
+
+    def create_delegates_tab(self):
+        self.delegates_widget = DelegatesWidget(self.config)
+        return self.delegates_widget
 
     def timer_actions(self):
         now = time.time()

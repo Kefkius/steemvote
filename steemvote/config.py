@@ -133,6 +133,7 @@ class Config(object):
             return
         options = dict(self.options)
         options['authors'] = [i.to_dict() for i in self.authors]
+        options['delegates'] = [i.to_dict() for i in self.delegates]
 
         if self.config_format == 'json':
             s = json.dumps(options, indent=4, sort_keys=True)
