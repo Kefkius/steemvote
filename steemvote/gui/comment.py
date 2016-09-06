@@ -6,19 +6,16 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 class CommentsModel(QAbstractTableModel):
-    AUTHOR = 0
-    URL = 1
-    TIMESTAMP = 2
-    TOTAL_FIELDS = 3
+    URL = 0
+    TIMESTAMP = 1
+    REASON_TYPE = 2
+    REASON_VALUE = 3
+    TOTAL_FIELDS = 4
     def __init__(self, parent=None):
         super(CommentsModel, self).__init__(parent)
         self.comments = []
 
         self.headers = [
-            {
-                Qt.DisplayRole: 'Author',
-                Qt.ToolTipRole: 'Author of the post',
-            },
             {
                 Qt.DisplayRole: 'URL',
                 Qt.ToolTipRole: 'URL that the post can be found at',
@@ -26,6 +23,14 @@ class CommentsModel(QAbstractTableModel):
             {
                 Qt.DisplayRole: 'Timestamp',
                 Qt.ToolTipRole: 'When the post was created',
+            },
+            {
+                Qt.DisplayRole: 'Reason',
+                Qt.ToolTipRole: 'Why the post is being tracked',
+            },
+            {
+                Qt.DisplayRole: 'User',
+                Qt.ToolTipRole: 'Who caused the post to be tracked',
             },
         ]
 
@@ -54,13 +59,12 @@ class CommentsModel(QAbstractTableModel):
         if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.UserRole]:
             return None
 
-        comment = self.comments[index.row()]
+        tracked_comment = self.comments[index.row()]
+        comment = tracked_comment.comment
         col = index.column()
 
         data = None
-        if col == self.AUTHOR:
-            data = comment.author
-        elif col == self.URL:
+        if col == self.URL:
             data = comment.get_url()
             # UserRole is for the comment identifier.
             if role == Qt.UserRole:
@@ -69,6 +73,10 @@ class CommentsModel(QAbstractTableModel):
             data = comment.timestamp
             if role == Qt.DisplayRole:
                 data = datetime.fromtimestamp(comment.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        elif col == self.REASON_TYPE:
+            data = tracked_comment.reason_type
+        elif col == self.REASON_VALUE:
+            data = tracked_comment.reason_value
 
         return data
 
@@ -115,11 +123,16 @@ class CommentsWidget(QWidget):
         def open_in_browser(index):
             url = self.proxy_model.data(self.proxy_model.index(index.row(), self.model.URL))
             webbrowser.open(url)
+        def open_user_page(index):
+            user = self.proxy_model.data(self.proxy_model.index(index.row(), self.model.REASON_VALUE))
+            url = 'https://steemit.com/@%s' % user
+            webbrowser.open(url)
         def skip(index):
             identifier = self.proxy_model.data(self.proxy_model.index(index.row(), self.model.URL), role=Qt.UserRole)
             self.db.remove_tracked_comments([identifier])
 
-        menu.addAction('Open in browser', lambda: open_in_browser(self.view.currentIndex()))
+        menu.addAction('Open post in browser', lambda: open_in_browser(self.view.currentIndex()))
+        menu.addAction('Open user page in browser', lambda: open_user_page(self.view.currentIndex()))
         menu.addAction('Stop tracking', lambda: skip(self.view.currentIndex()))
 
         menu.exec_(self.view.viewport().mapToGlobal(position))

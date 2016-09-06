@@ -280,7 +280,7 @@ class Voter(object):
         old_identifiers = []
 
         with self.voting_lock:
-            comments = self.db.get_tracked_comments()
+            comments = self.db.get_tracked_comments(with_metadata=False)
             for comment in comments:
                 # Skip if the comment shouldn't be voted on now.
                 should_vote = self.should_vote(comment)

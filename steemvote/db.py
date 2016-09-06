@@ -12,6 +12,13 @@ class DBVersionError(Exception):
     """Exception raised when an incompatible database version is encountered."""
     pass
 
+class TrackedComment(object):
+    """A comment with additional metadata."""
+    def __init__(self, comment, reason_type, reason_value):
+        self.comment = comment
+        self.reason_type = reason_type
+        self.reason_value = reason_value
+
 class BaseDBModel(peewee.Model):
     class Meta:
         database = database
@@ -51,6 +58,7 @@ class DB(object):
         self.check_version()
 
         self.lock = threading.RLock()
+        # {identifier: TrackedComment, ...}
         self.tracked_comments = {}
 
     def check_version(self):
@@ -79,9 +87,9 @@ class DB(object):
     def load(self, steem):
         """Load state."""
         # Load the comments to be voted on.
-        for c in DBComment.select().where((DBComment.tracked) & (not DBComment.voted)):
+        for c in DBComment.select().where((DBComment.tracked == True) & (DBComment.voted == False)):
             comment = Comment(steem, c.identifier)
-            self.tracked_comments[comment.identifier] = comment
+            self.tracked_comments[comment.identifier] = TrackedComment(comment, c.reason_type, c.reason_value)
 
     def close(self):
         self.db.close()
@@ -96,7 +104,7 @@ class DB(object):
             # Add the comment.
             DBComment.create(identifier=comment.identifier, reason_type=reason_type, reason_value=reason_value,
                     tracked=True, voted=False)
-            self.tracked_comments[comment.identifier] = comment
+            self.tracked_comments[comment.identifier] = TrackedComment(comment, reason_type, reason_value)
             return True
 
     def add_comment_with_author(self, comment):
@@ -122,17 +130,23 @@ class DB(object):
 
             self.remove_tracked_comments([i.identifier for i in comments])
 
-    def get_tracked_comments(self):
-        """Get the comments that are being tracked."""
+    def get_tracked_comments(self, with_metadata=True):
+        """Get the comments that are being tracked.
+
+        If with_metadata is False, only Comment instances
+        will be returned.
+        """
         with self.lock:
             comments = list(self.tracked_comments.values())
+            if not with_metadata:
+                comments = [i.comment for i in comments]
         return comments
 
     def remove_tracked_comments(self, identifiers):
         """Stop tracking comments with the given identifiers."""
         with self.lock:
             for identifier in identifiers:
-                c = DBComment.select().where((DBComment.identifier == identifier) & (DBComment.tracked) & (not DBComment.voted))
+                c = DBComment.select().where((DBComment.identifier == identifier) & (DBComment.tracked == True) & (DBComment.voted == False))
                 if c.exists():
                     c.get().delete_instance()
 
