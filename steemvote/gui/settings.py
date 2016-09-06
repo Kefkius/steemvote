@@ -77,6 +77,7 @@ class SettingsModel(QAbstractTableModel):
         else:
             return False
 
+        self.dataChanged.emit(index, index)
         return True
 
 class SettingsWidget(QWidget):
@@ -84,12 +85,11 @@ class SettingsWidget(QWidget):
     def __init__(self, config, parent=None):
         super(SettingsWidget, self).__init__(parent)
         self.model = SettingsModel(config)
+        self.model.dataChanged.connect(self.check_conflicting_values)
         self.config = config
 
         self.min_post_age = MinutesWidget()
         self.max_post_age = MinutesWidget()
-        for widget in [self.min_post_age, self.max_post_age]:
-            widget.valueChanged.connect(lambda new_value, widget=widget: self.adjust_post_age_values(widget, new_value))
 
         self.priority_high = QDoubleSpinBox()
         self.priority_normal = QDoubleSpinBox()
@@ -100,7 +100,6 @@ class SettingsWidget(QWidget):
             widget.setDecimals(4)
             widget.setSingleStep(0.1)
             widget.setSuffix('%')
-            widget.valueChanged.connect(lambda new_value, widget=widget: self.adjust_priority_values(widget, new_value))
 
         self.mapper = QDataWidgetMapper()
         self.mapper.setModel(self.model)
@@ -110,6 +109,8 @@ class SettingsWidget(QWidget):
         self.mapper.addMapping(self.priority_normal, self.model.PRIORITY_NORMAL)
         self.mapper.addMapping(self.priority_low, self.model.PRIORITY_LOW)
 
+        self.error_label = QLabel()
+        self.error_label.setStyleSheet('QLabel {color: red;}')
         self.save_settings_button = QPushButton('Save Settings')
         self.save_settings_button.clicked.connect(self.save_settings)
 
@@ -119,7 +120,7 @@ class SettingsWidget(QWidget):
         form.addRow('Minimum voting power (high priority):', self.priority_high)
         form.addRow('Minimum voting power (normal priority):', self.priority_normal)
         form.addRow('Minimum voting power (low priority):', self.priority_low)
-        form.addRow(floated_buttons([self.save_settings_button]))
+        form.addRow(floated_buttons([self.error_label, self.save_settings_button]))
 
         self.setLayout(form)
 
@@ -130,29 +131,18 @@ class SettingsWidget(QWidget):
         self.model.save()
         self.settingsChanged.emit()
 
-    def adjust_post_age_values(self, widget, new_value):
-        """Adjust the other post age setting when widget is set to a new value."""
-        # Automatically update max post age.
-        if widget == self.min_post_age and new_value > self.max_post_age.value():
-            self.max_post_age.setValue(new_value)
-        # Automatically update min post age.
-        elif widget == self.max_post_age and new_value < self.min_post_age.value():
-            self.min_post_age.setValue(new_value)
+    def disable_saving(self, reason):
+        """Disable saving."""
+        self.error_label.setText(reason)
+        self.save_settings_button.setEnabled(False)
 
-    def adjust_priority_values(self, widget, new_value):
-        """Adjust the other priority settings when widget is set to new_value."""
-        high, normal, low = self.priority_high, self.priority_normal, self.priority_low
-
-        if widget == high:
-            for w in [normal, low]:
-                if w.value() < new_value:
-                    w.setValue(new_value)
-        if widget == normal:
-            if low.value() < new_value:
-                low.setValue(new_value)
-            if high.value() > new_value:
-                high.setValue(new_value)
-        if widget == low:
-            for w in [high, normal]:
-                if w.value() > new_value:
-                    w.setValue(new_value)
+    def check_conflicting_values(self):
+        """Check for settings which conflict with each other."""
+        self.error_label.setText('')
+        self.save_settings_button.setEnabled(True)
+        # Check min/max post age.
+        if self.min_post_age.value() > self.max_post_age.value():
+            return self.disable_saving('Minimum post age cannot be more than maximum post age')
+        # Check priority values.
+        if not self.priority_low.value() >= self.priority_normal.value() >= self.priority_high.value():
+            return self.disable_saving('Priority values must be as follows: low >= normal >= high')
