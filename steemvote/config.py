@@ -20,6 +20,8 @@ default_values = (
     # Default low priority voting power.
     ('priority_low', 0.95), # 95%
 
+    # Default authors to ignore.
+    ('blacklist_authors', []),
     # Default categories to ignore.
     ('blacklist_categories', ['spam']),
 )

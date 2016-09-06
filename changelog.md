@@ -10,6 +10,8 @@
 * Delegates can now be specified with the `delegates` config key.
     Steemvoter will track and vote for comments that your delegates vote for
     as if they were written by your specified authors.
+* The config lists `blacklist_authors` and `blacklist_categories` can be used
+    to specify authors and categories that should never be voted for.
 * Backup authors have been refactored into a per-author priority system.
     Steemvoter will convert your list of backup authors into low-priority
     authors and add them to your main authors list.

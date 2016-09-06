@@ -61,7 +61,8 @@ Also like authors, you can use a string instead of an object and the default opt
 These voting rules are optional, and specify how to vote.
 
 The value `blacklist_categories` can be specified with a list of categories. Comments in those categories will
-never be voted for (Default: `[spam]`).
+never be voted for (Default: `[spam]`). Likewise, the value `blacklist_authors` can be specified with a list of author names.
+Posts by those authors will never be voted for, even if delegates vote for them.
 
 The following values can be specified as seconds or as human-readable strings (e.g. `"max_post_age": "2 days"`):
 

@@ -46,6 +46,7 @@ class Voter(object):
 
         config.require('voter_account_name')
         config.require('vote_key')
+        config.require_class('blacklist_authors', list)
         config.require_class('blacklist_categories', list)
 
         self.name = config.get('voter_account_name')
@@ -75,6 +76,8 @@ class Voter(object):
             if not priorities[Priority.low] >= priorities[Priority.normal] >= priorities[Priority.high]:
                 raise ValueError('Priority voting powers must be: low >= normal >= high')
 
+            # Authors to ignore posts by.
+            self.blacklisted_authors = config.get('blacklist_authors')
             # Categories to ignore posts in.
             self.blacklisted_categories = config.get('blacklist_categories')
 
@@ -164,6 +167,9 @@ class Voter(object):
         if not comment.allow_curation_rewards or not comment.allow_votes:
             return ShouldTrack(False, 'comment does not allow curation')
         with self.config_lock:
+            # Check if the post is by a blacklisted author.
+            if comment.author in self.blacklisted_authors:
+                return ShouldTrack(False, 'comment is by a blacklisted author')
             # Check if the post is in a blacklisted category.
             if comment.category in self.blacklisted_categories:
                 return ShouldTrack(False, 'comment is in a blacklisted category')
