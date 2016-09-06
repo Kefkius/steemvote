@@ -142,7 +142,11 @@ def run_steemvoter(config):
 def run_steemvoter_qt(config):
     # Putting these imports here allows the command-line to be used
     # without PyQt4 installed.
-    from PyQt4.QtGui import QApplication
+    try:
+        from PyQt4.QtGui import QApplication
+    except ImportError:
+        print('PyQt4 is not installed. Please install it or use the -t option.')
+        print('On Ubuntu, it can be installed with: `sudo apt-get install python3-pyqt4`')
     from steemvote.gui import SteemvoteWindow
     app = QApplication(sys.argv)
     try:
