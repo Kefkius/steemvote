@@ -5,8 +5,8 @@
 * There is now a graphical interface. The GUI is used unless
     the option `-t` or `--terminal` is passed to steemvoter.
     Steemvoter can still be used without installing PyQt4 by passing this option.
-* The database uses a new, versioned scheme.
-    Steemvoter will destroy old databases that do not use the new scheme.
+* The database now uses sqlite intead of leveldb.
+    Leveldb databases are no longer valid.
 * Delegates can now be specified with the `delegates` config key.
     Steemvoter will track and vote for comments that your delegates vote for
     as if they were written by your specified authors.

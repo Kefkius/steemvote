@@ -30,7 +30,7 @@ setup(
     ],
     install_requires = [
         'humanfriendly',
-        'plyvel',
+        'peewee',
         'pyyaml',
         'steem-piston',
     ],

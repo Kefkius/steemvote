@@ -1,120 +1,140 @@
-import enum
 import logging
-import struct
+import os
 import threading
-import time
 
-import plyvel
+import peewee
 
 from steemvote.models import Comment
+
+database = peewee.SqliteDatabase(None)
 
 class DBVersionError(Exception):
     """Exception raised when an incompatible database version is encountered."""
     pass
 
-class CommentAction(enum.Enum):
-    """Constants for actions taken on comments."""
-    # Comment has been voted on.
-    voted = b'1'
-    # Comment is being tracked.
-    tracked = b'2'
-    # Comment should not be tracked.
-    skipped = b'3'
+class BaseDBModel(peewee.Model):
+    class Meta:
+        database = database
+
+class DBConfig(BaseDBModel):
+    key = peewee.CharField()
+    value = peewee.CharField()
+
+class DBComment(BaseDBModel):
+    # Comment identifier.
+    identifier = peewee.CharField(unique=True)
+    # Type of reason why this comment is voted on.
+    reason_type = peewee.CharField()
+    # Value for why this comment is voted on.
+    reason_value = peewee.CharField()
+    # Whether this comment is being tracked.
+    tracked = peewee.BooleanField()
+    # Whether this comment has been voted on.
+    voted = peewee.BooleanField()
 
 class DB(object):
-    """Database for storing post data."""
+    """Database for storing data."""
     # Current database version.
-    db_version = '0.1.1'
+    db_version = '0.1.0'
 
     def __init__(self, config):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
 
-        self.path = config.get('database_path', 'database/')
+        self.path = config.get('database_path', 'database.db')
+        self.db = database
+        self.db.init(self.path)
+        self.db.connect()
 
-        self.db = plyvel.DB(self.path, create_if_missing=True)
+        DBConfig.create_table(fail_silently=True)
+        DBComment.create_table(fail_silently=True)
         self.check_version()
-        self.comment_lock = threading.RLock()
 
+        self.lock = threading.RLock()
         self.tracked_comments = {}
 
     def check_version(self):
         """Check the database version and update it if possible."""
         version = self.get_version()
-        # Version is '0.0.0' if from before db version was stored.
         if version < '0.1.0':
-            self.logger.warning('Incompatible or nonexistent database. Creating new database')
-            self.db.close()
-            plyvel.destroy_db(self.path)
-            self.db = plyvel.DB(self.path, create_if_missing=True)
-            self.set_version()
-        elif version < '0.1.1':
-            self.logger.info('Updating database to 0.1.1')
-            wb = self.db.write_batch()
-            for key, value in self.db.iterator(prefix=b'post'):
-                if value == b'0':
-                    wb.put(key, CommentAction.tracked.value)
-            wb.write()
-            self.set_version()
+            raise DBVersionError('Invalid database version (%s)' % version)
         # Handle future db versions.
         elif version > self.db_version:
             raise DBVersionError('Stored database version (%s) is greater than current version (%s)' % (version, self.db_version))
 
     def get_version(self):
         """Get the stored database version."""
-        return str(self.db.get(b'db-version', b'0.0.0'), 'utf-8')
+        query = DBConfig.select().where(DBConfig.key == 'db_version')
+        if query.exists():
+            version = query.get().value
+        else:
+            self.set_version()
+            version = self.db_version
+        return version
 
     def set_version(self):
         """Store the current database version."""
-        self.db.put(b'db-version', bytes(self.db_version, 'utf-8'))
+        DBConfig.create(key='db_version', value=self.db_version)
 
     def load(self, steem):
         """Load state."""
         # Load the comments to be voted on.
-        for key, value in self.db.iterator(prefix=b'post-'):
-            if value != CommentAction.tracked.value:
-                continue
-            comment = Comment.deserialize_key(key, steem)
+        for c in DBComment.select().where((DBComment.tracked) & (not DBComment.voted)):
+            comment = Comment(steem, c.identifier)
             self.tracked_comments[comment.identifier] = comment
 
     def close(self):
         self.db.close()
 
-    def add_comment(self, comment):
+    def add_comment(self, comment, reason_type, reason_value):
         """Add a comment to be voted on later."""
-        with self.comment_lock:
+        with self.lock:
             # Check if the post is already in the database.
-            if self.db.get(comment.serialize_key()) is not None:
-                return
+            if DBComment.select().where(DBComment.identifier == comment.identifier).exists():
+                return False
 
-            self.db.put(comment.serialize_key(), CommentAction.tracked.value)
+            # Add the comment.
+            DBComment.create(identifier=comment.identifier, reason_type=reason_type, reason_value=reason_value,
+                    tracked=True, voted=False)
             self.tracked_comments[comment.identifier] = comment
-            self.logger.info('Added %s' % comment.identifier)
+            return True
+
+    def add_comment_with_author(self, comment):
+        """Add a comment to be voted on later due to its author."""
+        added = self.add_comment(comment, 'author', comment.author)
+        if added:
+            self.logger.info('Added %s by %s' % (comment.identifier, comment.author))
+
+    def add_comment_with_delegate(self, comment, delegate_name):
+        """Add a comment to be voted on later due to a delegate voter."""
+        added = self.add_comment(comment, 'delegate', delegate_name)
+        if added:
+            self.logger.info('Added %s voted for by %s' % (comment.identifier, delegate_name))
 
     def update_voted_comments(self, comments):
         """Update comments that have been voted on."""
-        with self.comment_lock:
-            wb = self.db.write_batch()
+        with self.lock:
             for comment in comments:
-                wb.put(comment.serialize_key(), CommentAction.voted.value)
-            wb.write()
+                c = DBComment.select().where(DBComment.identifier == comment.identifier).get()
+                c.tracked = False
+                c.voted = True
+                c.save()
 
-            self.remove_tracked_comments([comment.identifier for comment in comments])
+            self.remove_tracked_comments([i.identifier for i in comments])
 
     def get_tracked_comments(self):
         """Get the comments that are being tracked."""
-        with self.comment_lock:
+        with self.lock:
             comments = list(self.tracked_comments.values())
         return comments
 
     def remove_tracked_comments(self, identifiers):
         """Stop tracking comments with the given identifiers."""
-        with self.comment_lock:
-            wb = self.db.write_batch()
+        with self.lock:
             for identifier in identifiers:
-                key = Comment.serialize_key_from_identifier(identifier)
-                if self.db.get(key) == CommentAction.tracked.value:
-                    wb.put(key, CommentAction.skipped.value)
+                c = DBComment.select().where((DBComment.identifier == identifier) & (DBComment.tracked) & (not DBComment.voted))
+                if c.exists():
+                    c.get().delete_instance()
+
                 if identifier in self.tracked_comments:
                     del self.tracked_comments[identifier]
-            wb.write()

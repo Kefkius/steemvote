@@ -77,7 +77,9 @@ The following values can be specified as decimals or as human-readable percentag
 
 ### Database
 
-By default, the database of posts will be a folder called `database` in the current directory.
+Steemvoter uses a sqlite database to store data.
+
+By default, the database will be a file called `database.db` in the current directory.
 This behavior can be changed using the `database_path` config value.
 
 ### RPC

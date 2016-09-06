@@ -128,21 +128,6 @@ class Comment(Post):
         super(Comment, self).__init__(steem, post)
         self.timestamp = int(self.created_parsed.replace(tzinfo=datetime.timezone.utc).timestamp())
 
-    @staticmethod
-    def serialize_key_from_identifier(identifier):
-        if isinstance(identifier, str):
-            identifier = bytes(identifier, 'utf-8')
-        return b'post-' + identifier
-
-    @classmethod
-    def deserialize_key(cls, key, steem):
-        # Remove "post-" prefix.
-        identifier = str(key[5:], 'utf-8')
-        return cls(steem, identifier)
-
-    def serialize_key(self):
-        return Comment.serialize_key_from_identifier(self.identifier)
-
     def is_reply(self):
         return True if self.parent_author else False
 

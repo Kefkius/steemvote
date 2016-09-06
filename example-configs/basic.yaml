@@ -8,7 +8,7 @@ authors:
 - xcynosure,
 - {name: dantheman, upvote_replies: true, priority: low},
 - {name: ned, priority: low}
-database_path: /var/steemvoter/,
+database_path: /var/steemvoter.db,
 max_post_age: 1 week,
 vote_key: 5XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX,
 voter_account_name: myname
