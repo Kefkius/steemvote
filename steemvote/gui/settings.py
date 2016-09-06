@@ -12,16 +12,6 @@ class MinutesWidget(QDoubleSpinBox):
         self.setDecimals(2)
         self.setSuffix(' minutes')
 
-    @pyqtProperty(int)
-    def seconds(self):
-        result = self.value() * 60.0
-        return int(result)
-
-    @seconds.setter
-    def seconds(self, value):
-        val = value / 60.0
-        self.setValue(val)
-
 class SettingsModel(QAbstractTableModel):
     """Model for settings."""
     MIN_POST_AGE = 0
@@ -50,9 +40,9 @@ class SettingsModel(QAbstractTableModel):
         data = None
         c = index.column()
         if c == self.MIN_POST_AGE:
-            data = self.config.get_seconds('min_post_age')
+            data = self.config.get_seconds('min_post_age') / 60.0
         elif c == self.MAX_POST_AGE:
-            data = self.config.get_seconds('max_post_age')
+            data = self.config.get_seconds('max_post_age') / 60.0
         elif c == self.PRIORITY_HIGH:
             data = self.config.get_decimal('priority_high') * 100.0
         elif c == self.PRIORITY_NORMAL:
@@ -70,8 +60,10 @@ class SettingsModel(QAbstractTableModel):
 
         c = index.column()
         if c == self.MIN_POST_AGE:
+            value = str(round(value, 2)) + ' minutes'
             self.config.set('min_post_age', value)
         elif c == self.MAX_POST_AGE:
+            value = str(round(value, 2)) + ' minutes'
             self.config.set('max_post_age', value)
         elif c == self.PRIORITY_HIGH:
             value = str(round(value, 4)) + '%'
@@ -112,8 +104,8 @@ class SettingsWidget(QWidget):
 
         self.mapper = QDataWidgetMapper()
         self.mapper.setModel(self.model)
-        self.mapper.addMapping(self.min_post_age, self.model.MIN_POST_AGE, 'seconds')
-        self.mapper.addMapping(self.max_post_age, self.model.MAX_POST_AGE, 'seconds')
+        self.mapper.addMapping(self.min_post_age, self.model.MIN_POST_AGE)
+        self.mapper.addMapping(self.max_post_age, self.model.MAX_POST_AGE)
         self.mapper.addMapping(self.priority_high, self.model.PRIORITY_HIGH)
         self.mapper.addMapping(self.priority_normal, self.model.PRIORITY_NORMAL)
         self.mapper.addMapping(self.priority_low, self.model.PRIORITY_LOW)
