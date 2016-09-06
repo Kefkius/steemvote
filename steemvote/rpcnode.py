@@ -20,6 +20,11 @@ class SteemvoteRPC(SteemNodeRPC):
             result = super(SteemvoteRPC, self).__getattr__('get_block')(num)
         return result
 
+    def get_content(self, author, permlink):
+        with self.rpc_lock:
+            result = super(SteemvoteRPC, self).__getattr__('get_content')(author, permlink)
+        return result
+
     def get_dynamic_global_properties(self):
         with self.rpc_lock:
             result = super(SteemvoteRPC, self).__getattr__('get_dynamic_global_properties')()
