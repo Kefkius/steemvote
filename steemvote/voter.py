@@ -27,8 +27,6 @@ class Curator(object):
         # Subclasses must handle updating this value.
         self.current_voting_power = 0.0
 
-        self.config_lock = threading.RLock()
-
         # Load settings from config.
         config.require_class('blacklist_authors', list)
         config.require_class('blacklist_categories', list)
@@ -36,34 +34,32 @@ class Curator(object):
 
     def load_settings(self):
         """Load settings from config."""
-        with self.config_lock:
-            config = self.config
-            # Minimum age of posts to vote for.
-            self.min_post_age = config.get_seconds('min_post_age')
-            # Maximum age of posts to vote for.
-            self.max_post_age = config.get_seconds('max_post_age')
-            if self.min_post_age > self.max_post_age:
-                raise ConfigError('Minimum post age cannot be more than maximum post age')
+        config = self.config
+        # Minimum age of posts to vote for.
+        self.min_post_age = config.get_seconds('min_post_age')
+        # Maximum age of posts to vote for.
+        self.max_post_age = config.get_seconds('max_post_age')
+        if self.min_post_age > self.max_post_age:
+            raise ConfigError('Minimum post age cannot be more than maximum post age')
 
-            # Required remaining voting power to vote for each priority of comments.
-            self.priority_voting_powers = priorities = {
-                Priority.low: config.get_decimal('priority_low'),
-                Priority.normal: config.get_decimal('priority_normal'),
-                Priority.high: config.get_decimal('priority_high'),
-            }
-            if not priorities[Priority.low] >= priorities[Priority.normal] >= priorities[Priority.high]:
-                raise ConfigError('Priority voting powers must be: low >= normal >= high')
+        # Required remaining voting power to vote for each priority of comments.
+        self.priority_voting_powers = priorities = {
+            Priority.low: config.get_decimal('priority_low'),
+            Priority.normal: config.get_decimal('priority_normal'),
+            Priority.high: config.get_decimal('priority_high'),
+        }
+        if not priorities[Priority.low] >= priorities[Priority.normal] >= priorities[Priority.high]:
+            raise ConfigError('Priority voting powers must be: low >= normal >= high')
 
-            # Authors to ignore posts by.
-            self.blacklisted_authors = config.get('blacklist_authors')
-            # Categories to ignore posts in.
-            self.blacklisted_categories = config.get('blacklist_categories')
+        # Authors to ignore posts by.
+        self.blacklisted_authors = config.get('blacklist_authors')
+        # Categories to ignore posts in.
+        self.blacklisted_categories = config.get('blacklist_categories')
 
     def _get_voted_delegates(self, comment):
         """Get the delegates that have voted on comment."""
-        with self.config_lock:
-            my_delegates = {i.name: i for i in self.config.delegates}
-            voted_delegates = comment.get_have_voted(my_delegates.keys())
+        my_delegates = {i.name: i for i in self.config.delegates}
+        voted_delegates = comment.get_have_voted(my_delegates.keys())
 
         result = []
         for delegate_name in voted_delegates:
@@ -81,16 +77,15 @@ class Curator(object):
         # Check if the comment has curation disabled.
         if not comment.allow_curation_rewards or not comment.allow_votes:
             return ShouldTrack(False, 'comment does not allow curation')
-        with self.config_lock:
-            # Check if the post is by a blacklisted author.
-            if comment.author in self.blacklisted_authors:
-                return ShouldTrack(False, 'comment is by a blacklisted author')
-            # Check if the post is in a blacklisted category.
-            if comment.category in self.blacklisted_categories:
-                return ShouldTrack(False, 'comment is in a blacklisted category')
-            # Check if the post is too old.
-            if time.time() - comment.timestamp > self.max_post_age:
-                return ShouldTrack(False, 'comment is too old')
+        # Check if the post is by a blacklisted author.
+        if comment.author in self.blacklisted_authors:
+            return ShouldTrack(False, 'comment is by a blacklisted author')
+        # Check if the post is in a blacklisted category.
+        if comment.category in self.blacklisted_categories:
+            return ShouldTrack(False, 'comment is in a blacklisted category')
+        # Check if the post is too old.
+        if time.time() - comment.timestamp > self.max_post_age:
+            return ShouldTrack(False, 'comment is too old')
         return ShouldTrack(True, '')
 
     def should_track_for_author(self, comment):
@@ -99,14 +94,13 @@ class Curator(object):
         should_track = self.should_track(comment)
         if not should_track.track:
             return should_track
-        with self.config_lock:
-            # Check if the author isn't known to steemvote.
-            author = self.config.get_author(comment.author)
-            if not author:
-                return ShouldTrack(False, 'author is unknown')
-            # Check if we omit replies by the author.
-            if comment.is_reply() and not author.vote_replies:
-                return ShouldTrack(False, 'comment is a reply')
+        # Check if the author isn't known to steemvote.
+        author = self.config.get_author(comment.author)
+        if not author:
+            return ShouldTrack(False, 'author is unknown')
+        # Check if we omit replies by the author.
+        if comment.is_reply() and not author.vote_replies:
+            return ShouldTrack(False, 'comment is a reply')
         return ShouldTrack(True, '')
 
     def should_track_for_delegate(self, comment):
@@ -115,9 +109,8 @@ class Curator(object):
         should_track = self.should_track(comment)
         if not should_track.track:
             return should_track
-        with self.config_lock:
-            if not self._get_voted_delegates(comment):
-                return ShouldTrack(False, 'no delegates have voted for comment')
+        if not self._get_voted_delegates(comment):
+            return ShouldTrack(False, 'no delegates have voted for comment')
         return ShouldTrack(True, '')
 
     def is_prioritized(self, priority):
@@ -130,11 +123,10 @@ class Curator(object):
         Returns:
             A 2-tuple of (should_vote, reason).
         """
-        with self.config_lock:
-            # Check if the priority is high enough given our voting power.
-            author = self.config.get_author(comment.author)
-            if not author or not self.is_prioritized(author.priority):
-                return (False, 'author does not have a high enough priority')
+        # Check if the priority is high enough given our voting power.
+        author = self.config.get_author(comment.author)
+        if not author or not self.is_prioritized(author.priority):
+            return (False, 'author does not have a high enough priority')
         return (True, '')
 
     def _should_vote_delegates(self, comment):
@@ -143,12 +135,11 @@ class Curator(object):
         Returns:
             A 2-tuple of (should_vote, reason).
         """
-        with self.config_lock:
-            delegates = self._get_voted_delegates(comment)
-            if not delegates:
-                return (False, 'no delegates have voted for comment')
-            if not any(self.is_prioritized(priority) for priority in [i.priority for i in delegates]):
-                return (False, 'no delegates with a high enough priority')
+        delegates = self._get_voted_delegates(comment)
+        if not delegates:
+            return (False, 'no delegates have voted for comment')
+        if not any(self.is_prioritized(priority) for priority in [i.priority for i in delegates]):
+            return (False, 'no delegates with a high enough priority')
 
         return (True, '')
 
@@ -166,16 +157,15 @@ class Curator(object):
         if not should_track.track:
             return ShouldVote(False, *should_track)
         # Then check against rules that depend on context.
-        with self.config_lock:
-            # Check if the comment is too young.
-            if time.time() - comment.timestamp < self.min_post_age:
-                return ShouldVote(False, True, 'comment is too young')
-            # Check if the comment should be voted on based on its author
-            # or any delegates that have voted for it.
-            should_vote_author = self._should_vote_author(comment)
-            should_vote_delegates = self._should_vote_delegates(comment)
-            if not should_vote_author[0] and not should_vote_delegates[0]:
-                return ShouldVote(False, True, ' and '.join([should_vote_author[1], should_vote_delegates[1]]))
+        # Check if the comment is too young.
+        if time.time() - comment.timestamp < self.min_post_age:
+            return ShouldVote(False, True, 'comment is too young')
+        # Check if the comment should be voted on based on its author
+        # or any delegates that have voted for it.
+        should_vote_author = self._should_vote_author(comment)
+        should_vote_delegates = self._should_vote_delegates(comment)
+        if not should_vote_author[0] and not should_vote_delegates[0]:
+            return ShouldVote(False, True, ' and '.join([should_vote_author[1], should_vote_delegates[1]]))
         return ShouldVote(True, True, '')
 
 
@@ -203,14 +193,13 @@ class Voter(Curator):
 
     def load_settings(self):
         """Load settings from config."""
-        with self.config_lock:
-            super(Voter, self).load_settings()
-            self.name = config.get('voter_account_name')
-            self.wif = config.get('vote_key')
+        super(Voter, self).load_settings()
+        self.name = self.config.get('voter_account_name')
+        self.wif = self.config.get('vote_key')
 
-            self.rpc_node = self.config.get('rpc_node')
-            self.rpc_user = self.config.get('rpc_user')
-            self.rpc_pass = self.config.get('rpc_pass')
+        self.rpc_node = self.config.get('rpc_node')
+        self.rpc_user = self.config.get('rpc_user')
+        self.rpc_pass = self.config.get('rpc_pass')
 
     def connect_to_steem(self):
         """Connect to a Steem node."""
@@ -257,13 +246,12 @@ class Voter(Curator):
 
     def get_voting_weight(self, comment):
         """Get the weight that comment should be voted for with."""
-        with self.config_lock:
-            author = self.config.get_author(comment.author)
-            if author:
-                return author.weight
-            delegates = self._get_voted_delegates(comment)
-            if delegates:
-                return max([i.weight for i in delegates])
+        author = self.config.get_author(comment.author)
+        if author:
+            return author.weight
+        delegates = self._get_voted_delegates(comment)
+        if delegates:
+            return max([i.weight for i in delegates])
 
         raise Exception('Comment should not be voted for')
 
