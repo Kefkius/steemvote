@@ -17,44 +17,22 @@ STEEMIT_VOTE_REGENERATION_SECONDS = 5*60*60*24 # 5 days
 ShouldTrack = namedtuple('ShouldTrack', ('track', 'reason',))
 ShouldVote = namedtuple('ShouldVote', ('vote', 'track', 'reason',))
 
-class Voter(object):
-    """Voter settings and functionality.
-
-    This class is used by first calling connect_to_steem(),
-    then calling vote_for_comments() whenever the database
-    should be checked for eligible comments.
-
-    Voting logic is more strict than tracking logic,
-    which is just for deciding whether to track a comment.
-    Unlike tracking, there is only one should_vote() method.
+class Curator(object):
+    """Decides whether to vote for things.
     """
     def __init__(self, config):
         self.logger = logging.getLogger(__name__)
         self.config = config
-        self.steem = None
         # Current voting power that we have.
+        # Subclasses must handle updating this value.
         self.current_voting_power = 0.0
-        # Interval for updating stats.
-        self.update_interval = 20
-        # Last time that stats were updated via RPC.
-        self.last_update = 0
 
         self.config_lock = threading.RLock()
-        self.voting_lock = threading.Lock()
 
         # Load settings from config.
-
-        config.require('voter_account_name')
-        config.require('vote_key')
         config.require_class('blacklist_authors', list)
         config.require_class('blacklist_categories', list)
-
-        self.name = config.get('voter_account_name')
-        self.wif = config.get('vote_key')
-
         self.load_settings()
-
-        self.db = DB(config)
 
     def load_settings(self):
         """Load settings from config."""
@@ -65,7 +43,7 @@ class Voter(object):
             # Maximum age of posts to vote for.
             self.max_post_age = config.get_seconds('max_post_age')
             if self.min_post_age > self.max_post_age:
-                raise ValueError('Minimum post age cannot be more than maximum post age')
+                raise ConfigError('Minimum post age cannot be more than maximum post age')
 
             # Required remaining voting power to vote for each priority of comments.
             self.priority_voting_powers = priorities = {
@@ -74,75 +52,12 @@ class Voter(object):
                 Priority.high: config.get_decimal('priority_high'),
             }
             if not priorities[Priority.low] >= priorities[Priority.normal] >= priorities[Priority.high]:
-                raise ValueError('Priority voting powers must be: low >= normal >= high')
+                raise ConfigError('Priority voting powers must be: low >= normal >= high')
 
             # Authors to ignore posts by.
             self.blacklisted_authors = config.get('blacklist_authors')
             # Categories to ignore posts in.
             self.blacklisted_categories = config.get('blacklist_categories')
-
-            self.rpc_node = config.get('rpc_node')
-            self.rpc_user = config.get('rpc_user')
-            self.rpc_pass = config.get('rpc_pass')
-
-    def connect_to_steem(self):
-        """Connect to a Steem node."""
-        self.logger.debug('Connecting to Steem')
-        # We use nobroadcast=True so we can handle exceptions better.
-        self.steem = SteemvoteSteem(node=self.rpc_node, rpcuser=self.rpc_user,
-            rpcpassword=self.rpc_pass, wif=self.wif, nobroadcast=True,
-            apis=['database', 'network_broadcast'])
-        self.db.load(self.steem)
-        self.logger.debug('Connected')
-
-    def close(self):
-        self.db.close()
-        self.logger.debug('Stopped')
-
-    def update(self):
-        """Update voter stats."""
-        now = time.time()
-        # Only update stats every interval.
-        if now - self.last_update < self.update_interval:
-            return
-
-        d = self.steem.rpc.get_account(self.name)
-        if 'voting_power' not in d.keys():
-            msg = 'Invalid get_accounts() response: %s' % d
-            self.logger.error(msg)
-            raise Exception(msg)
-        # Calculate our current voting power.
-        # From vote_evaluator::do_apply in https://github.com/steemit/steem/blob/master/libraries/chain/steem_evaluator.cpp.
-        last_vote_time = datetime.datetime.strptime(d.get('last_vote_time', "1970-01-01T00:00:00"), '%Y-%m-%dT%H:%M:%S')
-        last_vote_time = last_vote_time.replace(tzinfo=datetime.timezone.utc).timestamp()
-        elapsed_seconds = int(now - last_vote_time)
-
-        regenerated_power = (STEEMIT_100_PERCENT * elapsed_seconds) / STEEMIT_VOTE_REGENERATION_SECONDS
-        current_power = min(d['voting_power'] + regenerated_power, STEEMIT_100_PERCENT)
-        self.current_voting_power = round(float(current_power) / STEEMIT_100_PERCENT, 4)
-
-        self.last_update = now
-
-    def get_voting_power(self):
-        """Get our current voting power as a string."""
-        return '{voting_power:.{decimals}%}'.format(voting_power=self.current_voting_power,
-                    decimals=len(str(self.current_voting_power)) - 3)
-
-    def is_prioritized(self, priority):
-        """Get whether a comment with the given priority should be voted for."""
-        return self.current_voting_power >= self.priority_voting_powers[priority]
-
-    def get_voting_weight(self, comment):
-        """Get the weight that comment should be voted for with."""
-        with self.config_lock:
-            author = self.config.get_author(comment.author)
-            if author:
-                return author.weight
-            delegates = self._get_voted_delegates(comment)
-            if delegates:
-                return max([i.weight for i in delegates])
-
-        raise Exception('Comment should not be voted for')
 
     def _get_voted_delegates(self, comment):
         """Get the delegates that have voted on comment."""
@@ -205,6 +120,10 @@ class Voter(object):
                 return ShouldTrack(False, 'no delegates have voted for comment')
         return ShouldTrack(True, '')
 
+    def is_prioritized(self, priority):
+        """Get whether a comment with the given priority should be voted for."""
+        return self.current_voting_power >= self.priority_voting_powers[priority]
+
     def _should_vote_author(self, comment):
         """Get whether comment should be voted on, based on its author.
 
@@ -258,6 +177,95 @@ class Voter(object):
             if not should_vote_author[0] and not should_vote_delegates[0]:
                 return ShouldVote(False, True, ' and '.join([should_vote_author[1], should_vote_delegates[1]]))
         return ShouldVote(True, True, '')
+
+
+class Voter(Curator):
+    """Voter settings and functionality.
+
+    This class is used by first calling connect_to_steem(),
+    then calling vote_for_comments() whenever the database
+    should be checked for eligible comments.
+    """
+    def __init__(self, config):
+        super(Voter, self).__init__(config)
+        # Ensure that authentication settings were supplied.
+        config.require('voter_account_name')
+        config.require('vote_key')
+
+        self.steem = None
+        # Interval for updating stats.
+        self.update_interval = 20
+        # Last time that stats were updated via RPC.
+        self.last_update = 0
+
+        self.voting_lock = threading.Lock()
+        self.db = DB(config)
+
+    def load_settings(self):
+        """Load settings from config."""
+        with self.config_lock:
+            super(Voter, self).load_settings()
+            self.name = config.get('voter_account_name')
+            self.wif = config.get('vote_key')
+
+            self.rpc_node = self.config.get('rpc_node')
+            self.rpc_user = self.config.get('rpc_user')
+            self.rpc_pass = self.config.get('rpc_pass')
+
+    def connect_to_steem(self):
+        """Connect to a Steem node."""
+        self.logger.debug('Connecting to Steem')
+        # We use nobroadcast=True so we can handle exceptions better.
+        self.steem = SteemvoteSteem(node=self.rpc_node, rpcuser=self.rpc_user,
+            rpcpassword=self.rpc_pass, wif=self.wif, nobroadcast=True,
+            apis=['database', 'network_broadcast'])
+        self.db.load(self.steem)
+        self.logger.debug('Connected')
+
+    def close(self):
+        self.db.close()
+        self.logger.debug('Stopped')
+
+    def update(self):
+        """Update voter stats."""
+        now = time.time()
+        # Only update stats every interval.
+        if now - self.last_update < self.update_interval:
+            return
+
+        d = self.steem.rpc.get_account(self.name)
+        if 'voting_power' not in d.keys():
+            msg = 'Invalid get_accounts() response: %s' % d
+            self.logger.error(msg)
+            raise Exception(msg)
+        # Calculate our current voting power.
+        # From vote_evaluator::do_apply in https://github.com/steemit/steem/blob/master/libraries/chain/steem_evaluator.cpp.
+        last_vote_time = datetime.datetime.strptime(d.get('last_vote_time', "1970-01-01T00:00:00"), '%Y-%m-%dT%H:%M:%S')
+        last_vote_time = last_vote_time.replace(tzinfo=datetime.timezone.utc).timestamp()
+        elapsed_seconds = int(now - last_vote_time)
+
+        regenerated_power = (STEEMIT_100_PERCENT * elapsed_seconds) / STEEMIT_VOTE_REGENERATION_SECONDS
+        current_power = min(d['voting_power'] + regenerated_power, STEEMIT_100_PERCENT)
+        self.current_voting_power = round(float(current_power) / STEEMIT_100_PERCENT, 4)
+
+        self.last_update = now
+
+    def get_voting_power(self):
+        """Get our current voting power as a string."""
+        return '{voting_power:.{decimals}%}'.format(voting_power=self.current_voting_power,
+                    decimals=len(str(self.current_voting_power)) - 3)
+
+    def get_voting_weight(self, comment):
+        """Get the weight that comment should be voted for with."""
+        with self.config_lock:
+            author = self.config.get_author(comment.author)
+            if author:
+                return author.weight
+            delegates = self._get_voted_delegates(comment)
+            if delegates:
+                return max([i.weight for i in delegates])
+
+        raise Exception('Comment should not be voted for')
 
     def _vote(self, identifier, weight):
         """Create and broadcast a vote for identifier."""
