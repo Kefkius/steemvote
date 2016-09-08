@@ -3,7 +3,7 @@ import os
 from setuptools import setup, find_packages
 
 # The current version of steemvote.
-STEEMVOTE_VERSION = '0.2.0'
+STEEMVOTE_VERSION = '0.3.0'
 
 # http://stackoverflow.com/questions/4060221/how-to-reliably-open-a-file-in-the-same-directory-as-a-python-script
 def readme():
