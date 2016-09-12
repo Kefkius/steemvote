@@ -66,6 +66,22 @@ class Curator(object):
             result.append(my_delegates[delegate_name])
         return result
 
+    def is_blacklisted(self, comment):
+        """Get whether comment is blacklisted."""
+        return comment.author in self.blacklisted_authors or comment.category in self.blacklisted_categories
+
+    def is_too_young(self, comment):
+        """Get whether comment is too young."""
+        return time.time() - comment.timestamp < self.min_post_age
+
+    def is_too_old(self, comment):
+        """Get whether comment is too old."""
+        return time.time() - comment.timestamp > self.max_post_age
+
+    def is_prioritized(self, priority):
+        """Get whether a comment with the given priority should be voted for."""
+        return self.current_voting_power >= self.priority_voting_powers[priority]
+
     def should_track(self, comment):
         """Get whether comment should be tracked.
 
@@ -77,14 +93,11 @@ class Curator(object):
         # Check if the comment has curation disabled.
         if not comment.allow_curation_rewards or not comment.allow_votes:
             return ShouldTrack(False, 'comment does not allow curation')
-        # Check if the post is by a blacklisted author.
-        if comment.author in self.blacklisted_authors:
-            return ShouldTrack(False, 'comment is by a blacklisted author')
-        # Check if the post is in a blacklisted category.
-        if comment.category in self.blacklisted_categories:
-            return ShouldTrack(False, 'comment is in a blacklisted category')
-        # Check if the post is too old.
-        if time.time() - comment.timestamp > self.max_post_age:
+        # Check if the comment is blacklisted.
+        if self.is_blacklisted(comment):
+            return ShouldTrack(False, 'comment author/category is blacklisted')
+        # Check if the comment is too old.
+        if self.is_too_old(comment):
             return ShouldTrack(False, 'comment is too old')
         return ShouldTrack(True, '')
 
@@ -112,10 +125,6 @@ class Curator(object):
         if not self._get_voted_delegates(comment):
             return ShouldTrack(False, 'no delegates have voted for comment')
         return ShouldTrack(True, '')
-
-    def is_prioritized(self, priority):
-        """Get whether a comment with the given priority should be voted for."""
-        return self.current_voting_power >= self.priority_voting_powers[priority]
 
     def _should_vote_author(self, comment):
         """Get whether comment should be voted on, based on its author.
@@ -158,7 +167,7 @@ class Curator(object):
             return ShouldVote(False, *should_track)
         # Then check against rules that depend on context.
         # Check if the comment is too young.
-        if time.time() - comment.timestamp < self.min_post_age:
+        if self.is_too_young(comment):
             return ShouldVote(False, True, 'comment is too young')
         # Check if the comment should be voted on based on its author
         # or any delegates that have voted for it.
