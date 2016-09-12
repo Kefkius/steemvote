@@ -2,7 +2,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from steemvote.models import Author, Priority
-from steemvote.gui.util import floated_buttons, Separator
+from steemvote.gui.util import format_vote_type, floated_buttons, Separator, WeightWidget
 
 def yes_or_no(value):
     return 'Yes' if value else 'No'
@@ -11,7 +11,7 @@ class AuthorsModel(QAbstractTableModel):
     NAME = 0
     PRIORITY = 1
     VOTE_REPLIES = 2
-    UPVOTE = 3
+    WEIGHT = 3
     TOTAL_FIELDS = 4
 
     # Role for sorting
@@ -117,10 +117,10 @@ class AuthorsModel(QAbstractTableModel):
                 data = Qt.Checked if author.vote_replies else Qt.Unchecked
             elif role == Qt.DisplayRole:
                 data = yes_or_no(author.vote_replies)
-        elif col == self.UPVOTE:
-            data = True if author.weight == 100.0 else False
+        elif col == self.WEIGHT:
+            data = author.weight
             if role == Qt.DisplayRole:
-                data = 'Upvote' if data else 'Downvote'
+                data = format_vote_type(author.weight)
 
         return data
 
@@ -137,9 +137,8 @@ class AuthorsModel(QAbstractTableModel):
             author.priority = Priority.from_index(value)
         elif col == self.VOTE_REPLIES:
             author.vote_replies = value
-        elif col == self.UPVOTE:
-            val = 100.0 if value else -100.0
-            author.weight = val
+        elif col == self.WEIGHT:
+            author.weight = value
         else:
             return False
 
@@ -159,19 +158,19 @@ class AuthorEditor(QWidget):
         self.priority_combo = QComboBox()
         self.priority_combo.setModel(QStringListModel([i.value for i in Priority]))
         self.vote_replies_box = QCheckBox()
-        self.upvote_box = QCheckBox()
+        self.weight_widget = WeightWidget()
 
         model = parent.model
         self.mapper.addMapping(self.name_edit, model.NAME)
         self.mapper.addMapping(self.priority_combo, model.PRIORITY, 'currentIndex')
         self.mapper.addMapping(self.vote_replies_box, model.VOTE_REPLIES)
-        self.mapper.addMapping(self.upvote_box, model.UPVOTE)
+        self.mapper.addMapping(self.weight_widget, model.WEIGHT, 'weight')
 
         form = QFormLayout()
         form.addRow('Name:', self.name_edit)
         form.addRow('Priority:', self.priority_combo)
         form.addRow('Vote for replies?', self.vote_replies_box)
-        form.addRow('Upvote?', self.upvote_box)
+        form.addRow('Vote type:', self.weight_widget)
 
         self.setLayout(form)
 
@@ -195,6 +194,7 @@ class AuthorsWidget(QWidget):
         for header in [self.view.horizontalHeader(), self.view.verticalHeader()]:
             header.setHighlightSections(False)
         self.view.horizontalHeader().setResizeMode(self.model.NAME, QHeaderView.Stretch)
+        self.view.horizontalHeader().setResizeMode(self.model.WEIGHT, QHeaderView.ResizeToContents)
         self.view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
 

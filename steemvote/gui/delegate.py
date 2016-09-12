@@ -2,7 +2,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from steemvote.models import Delegate, Priority
-from steemvote.gui.util import floated_buttons, Separator
+from steemvote.gui.util import format_vote_type, floated_buttons, Separator, WeightWidget
 
 def yes_or_no(value):
     return 'Yes' if value else 'No'
@@ -10,7 +10,7 @@ def yes_or_no(value):
 class DelegatesModel(QAbstractTableModel):
     NAME = 0
     PRIORITY = 1
-    UPVOTE = 2
+    WEIGHT = 2
     TOTAL_FIELDS = 3
 
     # Role for sorting
@@ -103,10 +103,10 @@ class DelegatesModel(QAbstractTableModel):
             data = delegate.priority.value
             if role in [Qt.EditRole, self.SortRole]:
                 data = Priority.get_index(delegate.priority)
-        elif col == self.UPVOTE:
-            data = True if delegate.weight == 100.0 else False
+        elif col == self.WEIGHT:
+            data = delegate.weight
             if role == Qt.DisplayRole:
-                data = 'Upvote' if data else 'Downvote'
+                data = format_vote_type(delegate.weight)
 
         return data
 
@@ -121,9 +121,8 @@ class DelegatesModel(QAbstractTableModel):
             delegate.name = value
         elif col == self.PRIORITY:
             delegate.priority = Priority.from_index(value)
-        elif col == self.UPVOTE:
-            val = 100.0 if value else -100.0
-            delegate.weight = val
+        elif col == self.WEIGHT:
+            delegate.weight = value
         else:
             return False
 
@@ -142,17 +141,17 @@ class DelegateEditor(QWidget):
         self.name_edit = QLineEdit()
         self.priority_combo = QComboBox()
         self.priority_combo.setModel(QStringListModel([i.value for i in Priority]))
-        self.upvote_box = QCheckBox()
+        self.weight_widget = WeightWidget()
 
         model = parent.model
         self.mapper.addMapping(self.name_edit, model.NAME)
         self.mapper.addMapping(self.priority_combo, model.PRIORITY, 'currentIndex')
-        self.mapper.addMapping(self.upvote_box, model.UPVOTE)
+        self.mapper.addMapping(self.weight_widget, model.WEIGHT, 'weight')
 
         form = QFormLayout()
         form.addRow('Name:', self.name_edit)
         form.addRow('Priority:', self.priority_combo)
-        form.addRow('Upvote?', self.upvote_box)
+        form.addRow('Vote type:', self.weight_widget)
 
         self.setLayout(form)
 
@@ -176,6 +175,7 @@ class DelegatesWidget(QWidget):
         for header in [self.view.horizontalHeader(), self.view.verticalHeader()]:
             header.setHighlightSections(False)
         self.view.horizontalHeader().setResizeMode(self.model.NAME, QHeaderView.Stretch)
+        self.view.horizontalHeader().setResizeMode(self.model.WEIGHT, QHeaderView.ResizeToContents)
         self.view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
 
