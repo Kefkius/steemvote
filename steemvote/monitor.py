@@ -1,11 +1,12 @@
 import logging
 import sys
 import threading
+import time
 import traceback
 
 from piston.steem import Steem
 
-from steemvote.models import Comment
+from steemvote.models import Comment, AccountHistory
 from steemvote.voter import Voter
 
 
@@ -97,3 +98,33 @@ class Monitor(threading.Thread):
                 self.db.add_comment_with_delegate(comment, self.config.get_delegate(d['voter']).name)
         except ValueError as e:
             self.logger.debug('Invalid comment. Skipping')
+
+
+class AccountHistoryMonitor(Monitor):
+    def __init__(self, voter):
+        super(AccountHistoryMonitor, self).__init__(voter)
+        self.update_interval = self.config.get_seconds('account_history_interval', 60 * 60)
+        self.last_update = 0
+
+    def run(self):
+        self.logger.debug('Starting account history monitor')
+        while self.is_running():
+            now = time.time()
+            if now - self.last_update > self.update_interval:
+                self.retrieve_account_history()
+                self.last_update = now
+            time.sleep(1)
+        self.logger.debug('Account history monitor thread stopped')
+
+    def retrieve_account_history(self):
+        limit = 500
+        highest_stored_sequence = self.db.get_highest_history_sequence_number()
+        if highest_stored_sequence == 0:
+            limit = 5000
+        first = highest_stored_sequence + limit
+        history = [i for i in self.steem.rpc.account_history(self.voter.name, first=first, limit=limit, only_ops=['curation_reward', 'curate_reward', 'vote'])]
+
+        if not self.is_running():
+            return
+        history = AccountHistory(history)
+        self.db.update_account_history(history)

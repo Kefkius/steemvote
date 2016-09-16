@@ -1,10 +1,15 @@
 import datetime
+from decimal import Decimal
 import enum
 import struct
 import time
 
 from piston.steem import Post
+from piston.utils import constructIdentifier
 
+class UnknownHistoryItemType(Exception):
+    """Exception raised when there's no model for an account history item."""
+    pass
 
 class Priority(enum.Enum):
     """Constants for author priority values."""
@@ -141,3 +146,68 @@ class Comment(Post):
         active_voters = [d['voter'] for d in self.active_votes]
         result = set(voter_names).intersection(set(active_voters))
         return list(result)
+
+class Vote(object):
+    """A vote."""
+    def __init__(self, d):
+        if not all(key in d for key in ['author', 'permlink', 'voter', 'weight']):
+            raise ValueError('Required fields are missing')
+        self.voter = d['voter']
+        self.weight = d['weight']
+        self.identifier = constructIdentifier(d['author'], d['permlink'])
+
+class CurationReward(object):
+    """A curation reward."""
+    def __init__(self, d):
+        if not all(key in d for key in ['comment_author', 'comment_permlink', 'curator', 'reward']):
+            raise ValueError('Required fields are missing')
+        self.curator = d['curator']
+        self.reward = Decimal(d['reward'].split()[0])
+        self.identifier = constructIdentifier(d['comment_author'], d['comment_permlink'])
+
+class AccountHistoryItem(object):
+    """An operation in an account's history."""
+    def __init__(self, d):
+        if not all(key in d for key in ['op', 'timestamp']):
+            raise ValueError('Required fields are missing')
+        # Parse timestamp into unix time.
+        self.datetime = datetime.datetime.strptime(d['timestamp'], '%Y-%m-%dT%H:%M:%S').replace(tzinfo=datetime.timezone.utc)
+
+        op_name, op = d['op']
+        if op_name in ['curation_reward', 'curate_reward']:
+            op = CurationReward(op)
+        elif op_name == 'vote':
+            op = Vote(op)
+        else:
+            raise UnknownHistoryItemType('No model for operation "%s"' % op_name)
+        self.op = op
+
+class AccountHistory(object):
+    """History of account operations."""
+    def __init__(self, history):
+        # {sequence_number: AccountHistoryItem, ...}
+        self.history = {}
+        for item in history:
+            self.parse_item(item)
+
+    def parse_item(self, item):
+        """Parse item into a history item."""
+        if not isinstance(item, list):
+            raise TypeError('History items must be lists')
+        # A history item is a list with 2 elements: The sequence number and a dict.
+        sequence = item[0]
+        try:
+            item = AccountHistoryItem(item[1])
+            self.history[sequence] = item
+        except UnknownHistoryItemType:
+            # Skip if there's no model for this history item type.
+            pass
+
+    def keys(self):
+        return self.history.keys()
+
+    def values(self):
+        return self.history.values()
+
+    def items(self):
+        return self.history.items()

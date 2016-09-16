@@ -7,7 +7,7 @@ import traceback
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from steemvote.monitor import Monitor
+from steemvote.monitor import Monitor, AccountHistoryMonitor
 from steemvote.voter import Voter
 from steemvote.gui.author import AuthorsWidget
 from steemvote.gui.delegate import DelegatesWidget
@@ -41,6 +41,7 @@ class SteemvoteWindow(QMainWindow):
 
         self.voter = Voter(config)
         self.monitor = Monitor(self.voter)
+        self.history_monitor = AccountHistoryMonitor(self.voter)
 
         # Timer-related attributes.
 
@@ -73,6 +74,7 @@ class SteemvoteWindow(QMainWindow):
         self.voter.connect_to_steem()
         self.voter.update()
         self.monitor.start()
+        self.history_monitor.start()
 
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 
@@ -82,6 +84,7 @@ class SteemvoteWindow(QMainWindow):
         self.timer.stop()
 
         self.monitor.stop()
+        self.history_monitor.stop()
         self.voter.close()
 
     def create_status_tab(self):

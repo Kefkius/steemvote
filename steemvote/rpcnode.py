@@ -15,6 +15,11 @@ class SteemvoteRPC(SteemNodeRPC):
             result = super(SteemvoteRPC, self).get_account(name)
         return result
 
+    def get_account_history(self, *args, **kwargs):
+        with self.rpc_lock:
+            result = super(SteemvoteRPC, self).__getattr__('get_account_history')(*args, **kwargs)
+        return result
+
     def get_block(self, num):
         with self.rpc_lock:
             result = super(SteemvoteRPC, self).__getattr__('get_block')(num)

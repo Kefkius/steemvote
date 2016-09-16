@@ -4,7 +4,7 @@ import threading
 
 import peewee
 
-from steemvote.models import Comment
+from steemvote import models
 
 database = peewee.SqliteDatabase(None)
 
@@ -19,12 +19,27 @@ class TrackedComment(object):
         self.reason_type = reason_type
         self.reason_value = reason_value
 
+class CurationHistoryItem(TrackedComment):
+    """A record of a comment's curation reward."""
+    def __init__(self, identifier, reason_type, reason_value, vote, curation_reward):
+        self.identifier = identifier
+        self.reason_type = reason_type
+        self.reason_value = reason_value
+
+        self.vote_sequence_number = vote.sequence_number
+        self.vote_time = vote.vote_time
+        self.vote_weight = vote.weight
+
+        self.reward_sequence_number = curation_reward.sequence_number
+        self.reward_time = curation_reward.reward_time
+        self.reward = curation_reward.reward
+
 class BaseDBModel(peewee.Model):
     class Meta:
         database = database
 
 class DBConfig(BaseDBModel):
-    key = peewee.CharField()
+    key = peewee.CharField(unique=True)
     value = peewee.CharField()
 
 class DBComment(BaseDBModel):
@@ -38,6 +53,23 @@ class DBComment(BaseDBModel):
     tracked = peewee.BooleanField()
     # Whether this comment has been voted on.
     voted = peewee.BooleanField()
+
+class DBCurationReward(BaseDBModel):
+    # Account history sequence number.
+    sequence_number = peewee.IntegerField(unique=True)
+
+    comment = peewee.ForeignKeyField(DBComment, related_name='curation_reward')
+    reward = peewee.DecimalField(decimal_places=6)
+    reward_time = peewee.TimestampField(utc=True, default=None)
+
+class DBVote(BaseDBModel):
+    # Account history sequence number.
+    sequence_number = peewee.IntegerField(unique=True)
+
+    comment = peewee.ForeignKeyField(DBComment, related_name='vote')
+    weight = peewee.IntegerField()
+    vote_time = peewee.TimestampField(utc=True, default=None)
+
 
 class DB(object):
     """Database for storing data."""
@@ -55,11 +87,15 @@ class DB(object):
 
         DBConfig.create_table(fail_silently=True)
         DBComment.create_table(fail_silently=True)
+        DBCurationReward.create_table(fail_silently=True)
+        DBVote.create_table(fail_silently=True)
         self.check_version()
 
         self.lock = threading.RLock()
         # {identifier: TrackedComment, ...}
         self.tracked_comments = {}
+        # [CurationHistoryItem, ...]
+        self.curation_history = []
 
     def check_version(self):
         """Check the database version and update it if possible."""
@@ -88,8 +124,12 @@ class DB(object):
         """Load state."""
         # Load the comments to be voted on.
         for c in DBComment.select().where((DBComment.tracked == True) & (DBComment.voted == False)):
-            comment = Comment(steem, c.identifier)
+            comment = models.Comment(steem, c.identifier)
             self.tracked_comments[comment.identifier] = TrackedComment(comment, c.reason_type, c.reason_value)
+        # Load the curation history.
+        for c in DBComment.select(DBComment, DBCurationReward, DBVote).where( (DBComment.voted == True) ).join(DBCurationReward, on=DBCurationReward.comment).join(DBVote, on=DBVote.comment):
+            item = CurationHistoryItem(c.identifier, c.reason_type, c.reason_value, c.vote.get(), c.curation_reward.get())
+            self.curation_history.append(item)
 
     def close(self):
         self.db.close()
@@ -152,3 +192,77 @@ class DB(object):
 
                 if identifier in self.tracked_comments:
                     del self.tracked_comments[identifier]
+
+    def add_curation_history_item(self, sequence_number, item):
+        """Add a curation history item."""
+        if DBCurationReward.select().where(DBCurationReward.sequence_number == sequence_number).exists():
+            return
+        c = DBComment.select().where(DBComment.identifier == item.op.identifier)
+        # If the comment isn't stored, then we didn't vote on it (the user may have done so manually).
+        if not c.exists():
+            return
+        comment = c.get()
+        DBCurationReward.create(sequence_number=sequence_number, comment=comment, reward=item.op.reward, reward_time=item.datetime)
+        return comment.identifier
+
+    def add_vote_history_item(self, sequence_number, item):
+        """Add a vote history item."""
+        if DBVote.select().where(DBVote.sequence_number == sequence_number).exists():
+            return
+        c = DBComment.select().where(DBComment.identifier == item.op.identifier)
+        # If the comment isn't stored, then we didn't vote on it (the user may have done so manually).
+        if not c.exists():
+            return
+        comment = c.get()
+        DBVote.create(sequence_number=sequence_number, comment=comment, weight=item.op.weight, vote_time=item.datetime)
+        return comment.identifier
+
+    def update_account_history(self, history):
+        """Update stored history."""
+        if not history.keys():
+            return
+        with self.lock:
+            updated_identifiers = []
+            for sequence_number, item in history.items():
+                identifier = None
+                if isinstance(item.op, models.CurationReward):
+                    identifier = self.add_curation_history_item(sequence_number, item)
+                elif isinstance(item.op, models.Vote):
+                    identifier = self.add_vote_history_item(sequence_number, item)
+
+                if identifier and identifier not in updated_identifiers:
+                    updated_identifiers.append(identifier)
+
+            for identifier in updated_identifiers:
+                history_item = self.get_curation_history_item(identifier)
+                if history_item:
+                    self.curation_history.append(history_item)
+
+            q = DBConfig.select().where(DBConfig.key == 'account_history_sequence_number').get()
+            q.value = str(max(history.keys()))
+            q.save()
+
+    def get_curation_history_item(self, identifier):
+        """Get the curation history item for the comment with identifier."""
+        c = DBComment.select(DBComment, DBCurationReward, DBVote).where( (DBComment.voted == True) & (DBComment.identifier == identifier) ).join(DBCurationReward, on=DBCurationReward.comment).join(DBVote, on=DBVote.comment)
+        if not c.exists():
+            return
+        c = c.get()
+        item = CurationHistoryItem(c.identifier, c.reason_type, c.reason_value, c.vote.get(), c.curation_reward.get())
+        return item
+
+    def get_curation_history(self):
+        """Get stored curation rewards.
+
+        Returns:
+        """
+        with self.lock:
+            return sorted(self.curation_history, key=lambda i: i.reward_time)
+
+    def get_highest_history_sequence_number(self):
+        with self.lock:
+            q = DBConfig.select().where(DBConfig.key == 'account_history_sequence_number')
+            if not q.exists():
+                DBConfig.create(key='account_history_sequence_number', value='0')
+                return 0
+            return int(q.get().value)

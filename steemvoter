@@ -12,7 +12,7 @@ import humanfriendly
 from steemvote.config import Config, ConfigError
 from steemvote.db import DBVersionError
 from steemvote.models import Priority
-from steemvote.monitor import Monitor
+from steemvote.monitor import Monitor, AccountHistoryMonitor
 from steemvote.voter import Voter
 
 # Default interval for voting on eligible comments.
@@ -98,6 +98,7 @@ def run_steemvoter(config):
     try:
         voter = Voter(config)
         monitor = Monitor(voter)
+        history_monitor = AccountHistoryMonitor(voter)
         vote_interval = config.get_seconds('vote_interval', DEFAULT_VOTE_INTERVAL)
         # Vote interval cannot be less than one second.
         if vote_interval < 1:
@@ -118,6 +119,7 @@ def run_steemvoter(config):
     voter.connect_to_steem()
     voter.update()
     monitor.start()
+    history_monitor.start()
     while 1:
         now = time.time()
         try:
@@ -137,6 +139,7 @@ def run_steemvoter(config):
             logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
 
     monitor.stop()
+    history_monitor.stop()
     voter.close()
 
 def run_steemvoter_qt(config):
