@@ -28,7 +28,7 @@ class CurationHistoryItem(TrackedComment):
 
         self.vote_sequence_number = vote.sequence_number
         self.vote_time = vote.vote_time
-        self.vote_weight = vote.weight
+        self.vote_weight = vote.weight / 100.0
 
         self.reward_sequence_number = curation_reward.sequence_number
         self.reward_time = curation_reward.reward_time

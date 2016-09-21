@@ -12,6 +12,7 @@ from steemvote.voter import Voter
 from steemvote.gui.author import AuthorsWidget
 from steemvote.gui.delegate import DelegatesWidget
 from steemvote.gui.comment import CommentsWidget
+from steemvote.gui.history import CurationHistoryWidget
 from steemvote.gui.settings import SettingsWidget
 
 DEFAULT_VOTE_INTERVAL = 10 # 10 seconds.
@@ -52,6 +53,8 @@ class SteemvoteWindow(QMainWindow):
             raise ConfigError('The minimum value for "vote_interval" is 1 second')
         # The set of tracked comments as of the last timer action.
         self.last_tracked_comments = set()
+        # The set of curation history items as of the last timer action.
+        self.last_curation_history = set()
 
         self.timer.onTimer.connect(self.timer_actions)
 
@@ -61,6 +64,7 @@ class SteemvoteWindow(QMainWindow):
         self.tabs.addTab(self.create_settings_tab(), 'Settings')
         self.tabs.addTab(self.create_authors_tab(), 'Authors')
         self.tabs.addTab(self.create_delegates_tab(), 'Delegates')
+        self.tabs.addTab(self.create_history_tab(), 'History')
 
         # Status bar widgets.
         self.voting_power_label = QLabel()
@@ -112,6 +116,10 @@ class SteemvoteWindow(QMainWindow):
         self.delegates_widget = DelegatesWidget(self.config)
         return self.delegates_widget
 
+    def create_history_tab(self):
+        self.history_widget = CurationHistoryWidget(self.voter.db)
+        return self.history_widget
+
     def timer_actions(self):
         now = time.time()
         try:
@@ -130,6 +138,11 @@ class SteemvoteWindow(QMainWindow):
         if self.last_tracked_comments != tracked_comments:
             self.comments_widget.update_comments()
             self.last_tracked_comments = tracked_comments
+        # Update curation history.
+        curation_history = set(self.voter.db.get_curation_history())
+        if self.last_curation_history != curation_history:
+            self.history_widget.update_history()
+            self.last_curation_history = curation_history
 
         self.voting_power_label.setText('Voting power: %s' % self.voter.get_voting_power())
 

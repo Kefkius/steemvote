@@ -2,7 +2,7 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-def format_vote_type(weight):
+def format_vote_type(weight, verbose=True):
     """Format weight as a string for displaying vote type."""
     if weight == 0:
         return 'No vote'
@@ -10,7 +10,9 @@ def format_vote_type(weight):
     if weight < 0:
         vote_type = 'Downvote'
         weight = abs(weight)
-    return '{} (weight: {}%)'.format(vote_type, int(weight))
+
+    weight_label = 'weight: ' if verbose else ''
+    return '{} ({}{}%)'.format(vote_type, weight_label, int(weight))
 
 def floated_buttons(btns, left=False):
     """Returns a HBoxLayout with buttons floated to the right or left."""
