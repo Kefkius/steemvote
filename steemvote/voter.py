@@ -221,6 +221,8 @@ class Voter(Curator):
         self.logger.debug('Connected')
 
     def close(self):
+        if self.steem:
+            self.steem.rpc.running = False
         self.db.close()
         self.logger.debug('Stopped')
 

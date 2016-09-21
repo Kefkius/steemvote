@@ -7,6 +7,7 @@ import traceback
 from piston.steem import Steem
 
 from steemvote.models import Comment, AccountHistory
+from steemvote.rpcnode import NotRunningError
 from steemvote.voter import Voter
 
 
@@ -61,7 +62,10 @@ class Monitor(threading.Thread):
             try:
                 op_name, op = next(iterator)
                 # Call the handler with the operation.
-                self.op_handlers[op_name](op)
+                self.call_handler(op_name, op)
+            except NotRunningError:
+                # Stop silently when the program is exiting.
+                break
             except Exception as e:
                 self.logger.error(str(e))
                 self.logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
@@ -79,6 +83,12 @@ class Monitor(threading.Thread):
     def has_handler(self, op_name):
         """Get whether there is a handler for op_name operations."""
         return hasattr(self, 'on_%s' % op_name)
+
+    def call_handler(self, op_name, op):
+        """Call the handler for op_name."""
+        if not self.is_running():
+            return
+        self.op_handlers[op_name](op)
 
     def on_comment(self, d):
         """Handler for comment operations."""
@@ -111,7 +121,11 @@ class AccountHistoryMonitor(Monitor):
         while self.is_running():
             now = time.time()
             if now - self.last_update > self.update_interval:
-                self.retrieve_account_history()
+                try:
+                    self.retrieve_account_history()
+                except NotRunningError:
+                    # Stop silently when the program is exiting.
+                    break
                 self.last_update = now
             time.sleep(1)
         self.logger.debug('Account history monitor thread stopped')

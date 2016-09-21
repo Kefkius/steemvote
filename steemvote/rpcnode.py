@@ -4,11 +4,21 @@ from steemapi.steemnoderpc import SteemNodeRPC
 from piston.steem import Steem
 
 
+class NotRunningError(Exception):
+    """Exception raised when RPC is used after disconnecting."""
+    pass
+
 class SteemvoteRPC(SteemNodeRPC):
     """Temporary work-around for RPC threading problems."""
     def __init__(self, *args, **kwargs):
         super(SteemvoteRPC, self).__init__(*args, **kwargs)
         self.rpc_lock = threading.Lock()
+        self.running = True
+
+    def rpcexec(self, *args, **kwargs):
+        if not self.running:
+            raise NotRunningError('RPC is no longer running')
+        return super(SteemvoteRPC, self).rpcexec(*args, **kwargs)
 
     def get_account(self, name):
         with self.rpc_lock:
