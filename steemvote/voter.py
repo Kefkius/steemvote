@@ -273,12 +273,17 @@ class Voter(Curator):
             self.steem.rpc.broadcast_transaction(tx, api='network_broadcast')
             self.logger.info('Voted on %s' % identifier)
         except grapheneapi.graphenewsrpc.RPCError as e:
+            # Error messages containing these strings signify that we've already voted.
             already_voted_messages = [
                 'Changing your vote requires',
                 'Cannot vote again',
             ]
             if e.args and any(i in e.args[0] for i in already_voted_messages):
                 self.logger.info('Skipping already-voted post %s' % identifier)
+            # Handle rate-limiting.
+            elif e.args and 'Can only vote once every 3 seconds' in e.args[0]:
+                time.sleep(3)
+                return self._vote(identifier, weight)
             else:
                 raise e
 
@@ -302,11 +307,12 @@ class Voter(Curator):
                     if not should_vote.track:
                         old_identifiers.append(comment.identifier)
                         self.logger.debug('Stop tracking %s because %s' % (comment.identifier, should_vote.reason))
+                    continue
+
                 # Vote for the comment.
-                else:
-                    weight = self.get_voting_weight(comment)
-                    self._vote(comment.identifier, weight)
-                    voted_comments.append(comment)
+                weight = self.get_voting_weight(comment)
+                self._vote(comment.identifier, weight)
+                voted_comments.append(comment)
 
             self.db.update_voted_comments(voted_comments)
             self.db.remove_tracked_comments(old_identifiers)
