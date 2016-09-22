@@ -17,6 +17,10 @@ STEEMIT_VOTE_REGENERATION_SECONDS = 5*60*60*24 # 5 days
 ShouldTrack = namedtuple('ShouldTrack', ('track', 'reason',))
 ShouldVote = namedtuple('ShouldVote', ('vote', 'track', 'reason',))
 
+class ConflictingWeightsError(Exception):
+    """Exception raised when delegate vote weights conflict."""
+    pass
+
 class Curator(object):
     """Decides whether to vote for things.
     """
@@ -262,7 +266,18 @@ class Voter(Curator):
             return author.weight
         delegates = self._get_voted_delegates(comment)
         if delegates:
-            return max([i.weight for i in delegates])
+            # Check if delegate weights conflict (upvote vs. downvote).
+            weights = [i.weight for i in delegates]
+            if min(weights) < 0 and max(weights) > 0:
+                upvote_delegates = [i.name for i in delegates if i.weight > 0]
+                downvote_delegates = [i.name for i in delegates if i.weight < 0]
+
+                msg = 'Cannot vote for %s because delegates have conflicting weights (upvote: %s, downvote: %s)' % (
+                        comment.identifier, upvote_delegates, downvote_delegates)
+                self.logger.error(msg)
+                raise ConflictingWeightsError(msg)
+            # If multiple delegates have voted, use the highest or lowest weight.
+            return max(weights) if min(weights) > 0 else min(weights)
 
         raise Exception('Comment should not be voted for')
 
@@ -310,7 +325,12 @@ class Voter(Curator):
                     continue
 
                 # Vote for the comment.
-                weight = self.get_voting_weight(comment)
+                try:
+                    weight = self.get_voting_weight(comment)
+                except ConflictingWeightsError:
+                    # If delegate weights conflict (upvote vs. downvote), skip the comment.
+                    old_identifiers.append(comment.identifier)
+                    continue
                 self._vote(comment.identifier, weight)
                 voted_comments.append(comment)
 
